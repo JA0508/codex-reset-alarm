@@ -19,13 +19,13 @@ class CacheTests(unittest.TestCase):
         from unittest.mock import patch
         original = dict(dashboard.CACHE)
         try:
-            dashboard.CACHE.update(checked=0, limits={}, error='')
-            with patch('dashboard.alarm.fetch_limits', return_value={'rateLimitResetCredits': {'availableCount': 2, 'creditId': 'private'}}) as fetch, patch('dashboard.alarm.read_state', return_value={}):
+            dashboard.CACHE.update(checked=None, limits={}, error='')
+            with patch('dashboard.time.monotonic', return_value=5), patch('dashboard.alarm.fetch_limits', return_value={'rateLimitResetCredits': {'availableCount': 2, 'creditId': 'private'}}) as fetch, patch('dashboard.alarm.read_state', return_value={}):
                 first = dashboard.snapshot()
                 dashboard.snapshot()
                 self.assertEqual(fetch.call_count, 1)
                 self.assertEqual(first['credits'], {'availableCount': 2})
-            dashboard.CACHE['checked'] = 0
+            dashboard.CACHE['checked'] = None
             with patch('dashboard.alarm.fetch_limits', side_effect=RuntimeError('offline')), patch('dashboard.alarm.read_state', return_value={}):
                 failed = dashboard.snapshot()
                 self.assertEqual(failed['credits']['availableCount'], 2)

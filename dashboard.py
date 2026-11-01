@@ -12,7 +12,7 @@ import alarm
 
 ROOT = Path(__file__).resolve().parent
 TOKEN = secrets.token_urlsafe(32)
-CACHE = {'checked': 0, 'limits': {}, 'error': ''}
+CACHE = {'checked': None, 'limits': {}, 'error': ''}
 LOCK = threading.Lock()
 ALARM_LOCK = threading.Lock()
 
@@ -36,7 +36,7 @@ def redact(value):
 
 def snapshot():
     with LOCK:
-        if time.monotonic() - CACHE['checked'] >= 60:
+        if CACHE['checked'] is None or time.monotonic() - CACHE['checked'] >= 60:
             try:
                 CACHE['limits'] = alarm.fetch_limits(alarm.default_codex())
                 CACHE['error'] = ''
