@@ -110,28 +110,54 @@ def fetch_limits(codex):
             process.wait()
 
 
-def alert(message='Codex 的 5 小时额度窗口已到重置时间。'):
-    stop = threading.Event()
-    def play():
-        while not stop.is_set():
-            sound = subprocess.Popen(['/usr/bin/afplay', '/System/Library/Sounds/Glass.aiff'],
-                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            while sound.poll() is None:
-                if stop.wait(0.1):
-                    sound.terminate()
-                    sound.wait()
-                    return
-            stop.wait(0.4)
-    worker = threading.Thread(target=play, daemon=True)
-    worker.start()
+def stop_process(process):
+    if process is None:
+        return
+    if process.poll() is None:
+        process.terminate()
     try:
-        subprocess.run(['/usr/bin/osascript', '-e',
-                        'on run argv\n display dialog (item 1 of argv) with title "Codex 额度闹钟" '
-                        'buttons {"停止闹铃"} default button 1 giving up after 300\nend run', message],
-                       check=True, timeout=310)
+        process.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=2)
+
+
+def alert(message='Codex 的 5 小时额度窗口已到重置时间。', respect_preference=False):
+    if respect_preference and not preferences.enabled():
+        return False
+    dialog = sound = None
+    sounded = False
+    deadline = time.monotonic() + 300
+    try:
+        dialog = subprocess.Popen(['/usr/bin/osascript', '-e',
+            'on run argv\n display dialog (item 1 of argv) with title "Codex 额度闹钟" '
+            'buttons {"停止闹铃"} default button 1 giving up after 300\nend run', message],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        while True:
+            if respect_preference and not preferences.enabled():
+                break
+            if time.monotonic() >= deadline:
+                break
+            status = dialog.poll()
+            if status is not None:
+                if status != 0:
+                    raise subprocess.CalledProcessError(status, 'osascript')
+                break
+            if sound is None or sound.poll() is not None:
+                if sound is not None:
+                    if sound.returncode != 0:
+                        raise subprocess.CalledProcessError(sound.returncode, 'afplay')
+                    sound.wait(timeout=2)
+                sound = subprocess.Popen(['/usr/bin/afplay', '/System/Library/Sounds/Glass.aiff'],
+                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                sounded = True
+            time.sleep(0.1)
+        return sounded
     finally:
-        stop.set()
-        worker.join(timeout=3)
+        try:
+            stop_process(sound)
+        finally:
+            stop_process(dialog)
 
 
 def credits_increased(previous, current):
@@ -148,9 +174,9 @@ def deliver_transition(state, reset, path):
     try:
         if due:
             if preferences.enabled():
-                alert()
-                updated = {**updated, 'last_alarm': time.time()}
-                print('已提醒：' + format_time(due), flush=True)
+                if alert(respect_preference=True):
+                    updated = {**updated, 'last_alarm': time.time()}
+                    print('已提醒：' + format_time(due), flush=True)
         if updated != state:
             write_state(path, updated)
             if updated.get('reset') != state.get('reset'):
@@ -185,8 +211,8 @@ def run(codex, path, interval):
                 reset = five_hour_reset(payload)
                 credits = payload.get('rateLimitResetCredits') or {}
                 if preferences.enabled() and credits_increased(state.get('reset_credits', {}), credits):
-                    alert('Codex 赠送的额度重置次数增加了，请前往 Codex 查看。')
-                    state = {**state, 'last_alarm': time.time()}
+                    if alert('Codex 赠送的额度重置次数增加了，请前往 Codex 查看。', respect_preference=True):
+                        state = {**state, 'last_alarm': time.time()}
                 state = {**state, 'last_check': time.time(), 'last_error': '',
                          **({'reset_credits': credits} if credits else {})}
                 write_state(path, state)

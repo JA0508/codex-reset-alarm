@@ -73,11 +73,34 @@ class CommandTests(unittest.TestCase):
         with patch('alarm.fetch_limits', side_effect=RuntimeError('offline')), patch('builtins.print'):
             self.assertEqual(alarm.main(['status']), 1)
 
-    def test_alert(self):
-        with patch('alarm.subprocess.Popen') as sound, patch('alarm.subprocess.run') as dialog:
+    def test_alert_cli(self):
+        with patch('alarm.alert') as notify:
             self.assertEqual(alarm.main(['test-alarm']), 0)
-            sound.assert_called_once()
-            dialog.assert_called_once()
+            notify.assert_called_once()
+
+    def test_automatic_alert_disabled_initially(self):
+        with patch('alarm.preferences.enabled', return_value=False), patch('alarm.subprocess.Popen') as process:
+            self.assertFalse(alarm.alert(respect_preference=True))
+            process.assert_not_called()
+
+    def test_disable_stops_active_dialog_and_sound(self):
+        from unittest.mock import MagicMock
+        dialog, sound = MagicMock(), MagicMock()
+        dialog.poll.return_value = None
+        sound.poll.return_value = None
+        with patch('alarm.preferences.enabled', side_effect=[True, True, False]), patch('alarm.subprocess.Popen', side_effect=[dialog, sound]), patch('alarm.time.sleep'):
+            self.assertTrue(alarm.alert(respect_preference=True))
+        dialog.terminate.assert_called_once()
+        sound.terminate.assert_called_once()
+
+    def test_manual_alert_times_out_even_when_preferences_disabled(self):
+        from unittest.mock import MagicMock
+        dialog, sound = MagicMock(), MagicMock()
+        dialog.poll.return_value = None
+        sound.poll.return_value = None
+        with patch('alarm.preferences.enabled', return_value=False), patch('alarm.subprocess.Popen', side_effect=[dialog, sound]), patch('alarm.time.monotonic', side_effect=[0, 0, 301]), patch('alarm.time.sleep'):
+            self.assertTrue(alarm.alert())
+        dialog.terminate.assert_called_once()
 
     def test_run_saved_due_and_retry(self):
         with tempfile.TemporaryDirectory() as directory:
