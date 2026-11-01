@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Local macOS alarm for Codex's five-hour usage window."""
 import argparse
+import preferences
 import datetime
 import fcntl
 import json
@@ -146,9 +147,10 @@ def deliver_transition(state, reset, path):
     updated, due = advance(state, reset, time.time())
     try:
         if due:
-            alert()
-            updated = {**updated, 'last_alarm': time.time()}
-            print('已提醒：' + format_time(due), flush=True)
+            if preferences.enabled():
+                alert()
+                updated = {**updated, 'last_alarm': time.time()}
+                print('已提醒：' + format_time(due), flush=True)
         if updated != state:
             write_state(path, updated)
             if updated.get('reset') != state.get('reset'):
@@ -182,7 +184,7 @@ def run(codex, path, interval):
                 payload = fetch_limits(codex)
                 reset = five_hour_reset(payload)
                 credits = payload.get('rateLimitResetCredits') or {}
-                if credits_increased(state.get('reset_credits', {}), credits):
+                if preferences.enabled() and credits_increased(state.get('reset_credits', {}), credits):
                     alert('Codex 赠送的额度重置次数增加了，请前往 Codex 查看。')
                     state = {**state, 'last_alarm': time.time()}
                 state = {**state, 'last_check': time.time(), 'last_error': '',

@@ -9,6 +9,7 @@ import json
 import math
 import re
 import dashboard
+import preferences
 import os
 from pathlib import Path
 import secrets
@@ -71,10 +72,16 @@ def phone_status():
     safe = {key: snapshot.get(key) for key in
             ('running', 'reset', 'credits', 'last_check', 'last_alarm', 'error')}
     return {**safe, 'test_alarm_active': False, 'phone_mode': True,
-            'alarm_url': 'alarm.json'}
+            'alarm_url': 'alarm.json', 'notifications_enabled': preferences.enabled()}
 
 
 def handler_for(token):
+    csrf = secrets.token_urlsafe(32)
+    hosts = {'localhost:8766', '127.0.0.1:8766', stable_address().lower() + ':8766'}
+    try:
+        hosts.add(local_ip() + ':8766')
+    except OSError:
+        pass
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass  # Never write the secret URL to access logs.
@@ -96,11 +103,13 @@ def handler_for(token):
             if self.path == prefix + 'health':
                 return self.reply(200, {'service': 'codex-reset-alarm-iphone-v1'})
             if self.path == prefix + 'api/status':
-                return self.reply(200, phone_status())
+                return self.reply(200, {**phone_status(), 'csrf_token': csrf})
             if self.path in (prefix, prefix + 'iphone-setup'):
                 document = dashboard.ROOT / ('web/index.html' if self.path == prefix else 'iPhone设置.md')
                 return self.reply(200, document.read_bytes(),
                                   'text/html; charset=utf-8' if self.path == prefix else 'text/plain; charset=utf-8')
+            if not preferences.enabled():
+                return self.reply(200, {'enabled': False, 'date': None, 'label': 'Codex 额度重置'})
             reset = None
             try:
                 reset = alarm.five_hour_reset(alarm.fetch_limits(alarm.default_codex()))
@@ -114,10 +123,25 @@ def handler_for(token):
             if reset is None:
                 return self.reply(503, {'error': '暂时无法读取重置时间'})
             try:
-                payload = alarm_payload(reset)
+                payload = {**alarm_payload(reset), 'enabled': True}
             except ValueError:
                 return self.reply(409, {'error': '重置时间已过期，请稍后刷新'})
             return self.reply(200, payload)
+        def do_POST(self):
+            host = self.headers.get('Host', '')
+            if (host.lower() not in hosts or self.headers.get('Origin') != 'http://' + host
+                    or not hmac.compare_digest(self.headers.get('X-CSRF-Token', ''), csrf)
+                    or not hmac.compare_digest(self.path, '/' + token + '/api/settings')):
+                return self.reply(403, {'error': 'Forbidden'})
+            try:
+                size = int(self.headers.get('Content-Length', '0'))
+                if not 0 < size <= 1024:
+                    return self.reply(400, {'error': 'Invalid size'})
+                value = preferences.parse(self.rfile.read(size))
+                preferences.save(value)
+                return self.reply(200, {'notifications_enabled': value})
+            except (ValueError, OSError):
+                return self.reply(400, {'error': 'Invalid settings'})
     return Handler
 
 

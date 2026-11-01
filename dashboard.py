@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Loopback-only dashboard; does not start a monitor."""
 import hmac
+import preferences
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -44,7 +45,7 @@ def snapshot():
             CACHE['checked'] = time.monotonic()
         limits, error = CACHE['limits'], CACHE['error']
     state = alarm.read_state(alarm.DEFAULT_STATE)
-    return {'running': time.time() - state.get('heartbeat', 0) < 120,
+    return {'notifications_enabled': preferences.enabled(), 'running': time.time() - state.get('heartbeat', 0) < 120,
             'reset': alarm.five_hour_reset(limits) or state.get('reset'),
             'credits': redact(limits.get('rateLimitResetCredits') or state.get('reset_credits', {})),
             'last_check': state.get('last_check'), 'last_alarm': state.get('last_alarm'),
@@ -84,6 +85,16 @@ class Handler(BaseHTTPRequestHandler):
         if not allowed_host(self.headers.get('Host')) or not authorized(
                 self.headers.get('Origin'), self.headers.get('X-CSRF-Token'), TOKEN):
             return self.respond(403, {'error': 'Forbidden'})
+        if self.path == '/api/settings':
+            try:
+                size = int(self.headers.get('Content-Length', '0'))
+                if not 0 < size <= 1024:
+                    return self.respond(400, {'error': 'Invalid size'})
+                value = preferences.parse(self.rfile.read(size))
+                preferences.save(value)
+                return self.respond(200, {'notifications_enabled': value})
+            except (ValueError, OSError):
+                return self.respond(400, {'error': 'Invalid settings'})
         if self.path != '/api/test-alarm':
             return self.respond(404, {'error': 'Not found'})
         if not ALARM_LOCK.acquire(blocking=False):
