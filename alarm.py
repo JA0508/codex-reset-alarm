@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -34,8 +35,39 @@ def valid_reset(value):
     return isinstance(value, (int, float)) and not isinstance(value, bool) and 0 < value < 10**12
 
 
+def validate_limits(data):
+    """Reject malformed protocol containers before caching or interpreting them."""
+    if not isinstance(data, dict):
+        raise ValueError('Codex 额度响应必须为对象')
+    by_id = data.get('rateLimitsByLimitId')
+    if by_id is not None and not isinstance(by_id, dict):
+        raise ValueError('Codex 额度桶格式无效')
+    buckets = [data.get('rateLimits'), *(by_id or {}).values()]
+    for bucket in buckets:
+        if bucket is None:
+            continue
+        if not isinstance(bucket, dict):
+            raise ValueError('Codex 额度桶格式无效')
+        for key in ('primary', 'secondary'):
+            if bucket.get(key) is not None and not isinstance(bucket[key], dict):
+                raise ValueError('Codex 额度窗口格式无效')
+    credits = data.get('rateLimitResetCredits')
+    if credits is not None:
+        if not isinstance(credits, dict):
+            raise ValueError('Codex 赠送次数格式无效')
+        count = credits.get('availableCount')
+        if count is not None and (type(count) is not int or count < 0):
+            raise ValueError('Codex 赠送次数必须为非负整数')
+        details = credits.get('credits')
+        if details is not None and (not isinstance(details, list) or
+                                    any(not isinstance(item, dict) for item in details)):
+            raise ValueError('Codex 赠送详情格式无效')
+    return data
+
+
 def five_hour_reset(data):
     """Prefer the Codex bucket, then the legacy/default usage bucket."""
+    validate_limits(data)
     by_id = data.get('rateLimitsByLimitId') or {}
     if isinstance(by_id.get('codex'), dict):
         buckets = [by_id['codex']]
@@ -75,7 +107,7 @@ def read_state(path):
                 if ((key in ('reset', 'notified_reset', 'heartbeat', 'last_check', 'last_alarm') and valid_reset(value))
                     or (key == 'last_error' and isinstance(value, str))
                     or (key == 'reset_credits' and isinstance(value, dict)))}
-    except (FileNotFoundError, json.JSONDecodeError):
+    except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError):
         return {}
 
 
@@ -90,6 +122,8 @@ def write_state(path, state):
 def read_response(stream, request_id):
     for line in stream:
         message = json.loads(line)
+        if not isinstance(message, dict):
+            raise ValueError('Codex RPC响应格式无效')
         if message.get('id') == request_id:
             if 'error' in message:
                 raise RuntimeError('Codex RPC: ' + str(message['error']))
@@ -97,11 +131,29 @@ def read_response(stream, request_id):
     raise RuntimeError('Codex app-server 已退出或请求超时')
 
 
-def fetch_limits(codex):
+def fetch_limits(codex, timeout=20):
     process = subprocess.Popen([codex, 'app-server'], stdin=subprocess.PIPE,
                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                               text=True)
-    timer = threading.Timer(20, process.terminate)
+                               text=True, start_new_session=True)
+    cleanup_lock = threading.Lock()
+    def terminate_server():
+        with cleanup_lock:
+            # Only signal the session/process group created for this RPC request.
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            try:
+                process.wait(timeout=0.5)
+            except subprocess.TimeoutExpired:
+                pass
+            # A descendant can retain stdout even after its parent has exited.
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait(timeout=1)
+    timer = threading.Timer(timeout, terminate_server)
     timer.daemon = True
     timer.start()
     try:
@@ -113,15 +165,15 @@ def fetch_limits(codex):
         read_response(process.stdout, 1)
         send({'method': 'initialized', 'params': {}})
         send({'id': 2, 'method': 'account/rateLimits/read', 'params': {}})
-        return read_response(process.stdout, 2)
+        return validate_limits(read_response(process.stdout, 2))
     finally:
         timer.cancel()
-        process.terminate()
         try:
-            process.wait(timeout=3)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait()
+            terminate_server()
+        finally:
+            timer.join(timeout=2)
+            process.stdin.close()
+            process.stdout.close()
 
 
 def stop_process(process):

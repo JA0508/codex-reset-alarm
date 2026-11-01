@@ -49,11 +49,12 @@ class AlarmTests(unittest.TestCase):
 
     def test_rpc_notifications_and_errors(self):
         class FakeProcess:
+            pid = 999999999
             stdin = io.StringIO()
             stdout = io.StringIO('\n'.join([json.dumps({'method': 'notice'}), json.dumps({'id': 1, 'result': {}}), json.dumps({'id': 2, 'result': {'rateLimits': None}})]) + '\n')
             def terminate(self): pass
             def wait(self, timeout): pass
-        with patch('alarm.subprocess.Popen', return_value=FakeProcess()):
+        with patch('alarm.subprocess.Popen', return_value=FakeProcess()), patch('alarm.os.killpg'):
             self.assertEqual(alarm.fetch_limits('codex'), {'rateLimits': None})
 
     def test_rpc_error_and_eof(self):
@@ -164,3 +165,80 @@ class MonitorTests(unittest.TestCase):
                 self.assertTrue(alarm.monitor_running(path))
                 fcntl.flock(held, fcntl.LOCK_UN)
                 self.assertFalse(alarm.monitor_running(path))
+
+class RpcTimeoutTests(unittest.TestCase):
+    def test_sigterm_ignoring_server_is_killed_and_reaped(self):
+        import subprocess
+        import sys
+        import time
+        real_popen = subprocess.Popen
+        children = []
+        def spawn(*args, **kwargs):
+            code = 'import signal,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(60)'
+            child = real_popen([sys.executable, '-u', '-c', code], **kwargs)
+            children.append(child)
+            return child
+        started = time.monotonic()
+        try:
+            with patch('alarm.subprocess.Popen', side_effect=spawn):
+                with self.assertRaises(RuntimeError):
+                    alarm.fetch_limits('fake', timeout=0.2)
+            self.assertLess(time.monotonic() - started, 3)
+            self.assertIsNotNone(children[0].poll())
+            self.assertTrue(children[0].stdout.closed)
+        finally:
+            for child in children:
+                if child.poll() is None:
+                    child.kill()
+                    child.wait(timeout=2)
+
+class RecoveryTests(unittest.TestCase):
+    def test_invalid_encoding_state_is_recoverable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'state.json'
+            path.write_bytes(b'\xff')
+            self.assertEqual(alarm.read_state(path), {})
+
+    def test_malformed_limits_fail_with_controlled_error(self):
+        cases = [[], {'rateLimitsByLimitId': [1]}, {'rateLimits': [1]},
+                 {'rateLimitsByLimitId': {'codex': [1]}},
+                 {'rateLimits': {'primary': [1]}},
+                 {'rateLimitResetCredits': [1]},
+                 {'rateLimitResetCredits': {'availableCount': True}},
+                 {'rateLimitResetCredits': {'credits': [1]}}]
+        for payload in cases:
+            with self.subTest(payload=payload), self.assertRaises(ValueError):
+                alarm.five_hour_reset(payload)
+
+
+class RpcDescendantTests(unittest.TestCase):
+    def test_inherited_pipe_descendant_is_killed(self):
+        import os
+        import subprocess
+        import sys
+        import time
+        real_popen = subprocess.Popen
+        children = []
+        with tempfile.TemporaryDirectory() as directory:
+            pidfile = Path(directory) / 'child'
+            code = ("import os,signal,time,pathlib; pid=os.fork(); "
+                    "signal.signal(signal.SIGTERM,signal.SIG_IGN); "
+                    f"pathlib.Path({str(pidfile)!r}).write_text(str(os.getpid())) if pid==0 else None; "
+                    "time.sleep(60)")
+            def spawn(*args, **kwargs):
+                child = real_popen([sys.executable, '-u', '-c', code], **kwargs)
+                children.append(child)
+                return child
+            started = time.monotonic()
+            try:
+                with patch('alarm.subprocess.Popen', side_effect=spawn):
+                    with self.assertRaises(RuntimeError):
+                        alarm.fetch_limits('fake', timeout=0.2)
+                self.assertLess(time.monotonic() - started, 3)
+                self.assertIsNotNone(children[0].poll())
+                self.assertTrue(children[0].stdout.closed)
+            finally:
+                for child in children:
+                    try: os.killpg(child.pid, 9)
+                    except ProcessLookupError: pass
+                    child.wait(timeout=2)

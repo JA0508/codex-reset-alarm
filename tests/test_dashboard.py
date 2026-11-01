@@ -81,3 +81,14 @@ class FreshnessTests(unittest.TestCase):
                 value = dashboard.snapshot()
                 self.assertEqual(value['fetched_at'], 1000)
                 self.assertEqual(value['error'], 'offline')
+
+class InvalidPayloadTests(unittest.TestCase):
+    def test_invalid_payload_does_not_replace_good_cache(self):
+        from unittest.mock import patch
+        good = {'rateLimits': {'primary': {'windowDurationMins': 300, 'resetsAt': 9999999999}}}
+        with patch.dict(dashboard.CACHE, {'checked': None, 'limits': good, 'error': '', 'fetched_at': 1000}, clear=True), patch('dashboard.alarm.fetch_limits', return_value={'rateLimitsByLimitId': [1]}), patch('dashboard.alarm.read_state', return_value={}):
+            result = dashboard.snapshot()
+            self.assertEqual(result['reset'], 9999999999)
+            self.assertEqual(result['fetched_at'], 1000)
+            self.assertTrue(result['error'])
+            self.assertEqual(dashboard.CACHE['limits'], good)

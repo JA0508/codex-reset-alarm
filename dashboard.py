@@ -40,7 +40,7 @@ def snapshot():
     with LOCK:
         if CACHE['checked'] is None or time.monotonic() - CACHE['checked'] >= 60:
             try:
-                CACHE['limits'] = alarm.fetch_limits(alarm.default_codex())
+                CACHE['limits'] = alarm.validate_limits(alarm.fetch_limits(alarm.default_codex()))
                 CACHE['error'] = ''
                 CACHE['fetched_at'] = time.time()
             except (OSError, RuntimeError, ValueError, KeyError) as error:
