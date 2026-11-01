@@ -82,7 +82,7 @@ def stable_address():
 def phone_status():
     snapshot = dashboard.snapshot()
     safe = {key: snapshot.get(key) for key in
-            ('running', 'reset', 'credits', 'last_check', 'last_alarm', 'error')}
+            ('running', 'reset', 'credits', 'last_check', 'last_alarm', 'error', 'fetched_at')}
     return {**safe, 'test_alarm_active': False, 'phone_mode': True,
             'alarm_url': 'alarm.json', 'notifications_enabled': preferences.enabled()}
 

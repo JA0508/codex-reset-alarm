@@ -14,7 +14,7 @@ import alarm
 
 ROOT = Path(__file__).resolve().parent
 TOKEN = secrets.token_urlsafe(32)
-CACHE = {'checked': None, 'limits': {}, 'error': ''}
+CACHE = {'checked': None, 'limits': {}, 'error': '', 'fetched_at': None}
 LOCK = threading.Lock()
 ALARM_LOCK = threading.Lock()
 
@@ -42,12 +42,13 @@ def snapshot():
             try:
                 CACHE['limits'] = alarm.fetch_limits(alarm.default_codex())
                 CACHE['error'] = ''
+                CACHE['fetched_at'] = time.time()
             except (OSError, RuntimeError, ValueError, KeyError) as error:
                 CACHE['error'] = str(error)
             CACHE['checked'] = time.monotonic()
-        limits, error = CACHE['limits'], CACHE['error']
+        limits, error, fetched_at = CACHE['limits'], CACHE['error'], CACHE.get('fetched_at')
     state = alarm.read_state(alarm.DEFAULT_STATE)
-    return {'notifications_enabled': preferences.enabled(), 'running': time.time() - state.get('heartbeat', 0) < 120,
+    return {'fetched_at': fetched_at, 'notifications_enabled': preferences.enabled(), 'running': alarm.monitor_running(),
             'reset': alarm.five_hour_reset(limits) or state.get('reset'),
             'credits': redact(limits.get('rateLimitResetCredits') or state.get('reset_credits', {})),
             'last_check': state.get('last_check'), 'last_alarm': state.get('last_alarm'),

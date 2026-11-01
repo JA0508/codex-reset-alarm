@@ -69,3 +69,15 @@ class ConnectionHostTests(unittest.TestCase):
                 handler.do_GET()
                 connection.assert_not_called()
             self.assertEqual(handler.respond.call_args.args[0], 403)
+
+class FreshnessTests(unittest.TestCase):
+    def test_failed_refresh_keeps_last_success_time(self):
+        from unittest.mock import patch
+        with patch.dict(dashboard.CACHE, {'checked': None, 'limits': {}, 'error': '', 'fetched_at': None}, clear=True), patch('dashboard.alarm.read_state', return_value={}):
+            with patch('dashboard.alarm.fetch_limits', return_value={}), patch('dashboard.time.time', return_value=1000):
+                self.assertEqual(dashboard.snapshot()['fetched_at'], 1000)
+            dashboard.CACHE['checked'] = None
+            with patch('dashboard.alarm.fetch_limits', side_effect=RuntimeError('offline')), patch('dashboard.time.time', return_value=1100):
+                value = dashboard.snapshot()
+                self.assertEqual(value['fetched_at'], 1000)
+                self.assertEqual(value['error'], 'offline')

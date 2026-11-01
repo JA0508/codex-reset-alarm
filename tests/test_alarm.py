@@ -149,3 +149,18 @@ class CommandTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class MonitorTests(unittest.TestCase):
+    def test_lock_controls_running_status(self):
+        import fcntl
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'state.json'
+            lock_path = path.with_suffix('.lock')
+            self.assertFalse(alarm.monitor_running(path))
+            self.assertFalse(lock_path.exists())
+            with lock_path.open('w') as held:
+                self.assertFalse(alarm.monitor_running(path))
+                fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                self.assertTrue(alarm.monitor_running(path))
+                fcntl.flock(held, fcntl.LOCK_UN)
+                self.assertFalse(alarm.monitor_running(path))

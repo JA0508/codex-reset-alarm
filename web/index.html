@@ -5,9 +5,19 @@
 <title>Codex 额度闹钟</title>
 <link rel="icon" href="data:,"><style>
     :root {
-      color-scheme:light;
+      color-scheme:light dark;
       --ink:#17324b;
-      --muted:#697f90;
+      --muted:#536c7f;
+      --page:#edf2f7;
+      --surface:#fff;
+      --border:#d8e3eb;
+      --secondary:#dfe9f0;
+      --clock:#17324b;
+      --clock-text:#fff;
+      --clock-muted:#bdccda;
+      --danger-bg:#fff0ed;
+      --danger-ink:#9c412c;
+      --focus:#087f72;
       --green:#087f72
     }
     * {
@@ -15,7 +25,7 @@
     }
     body {
       margin:0;
-      background:#edf2f7;
+      background:var(--page);
       color:var(--ink);
       font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif
     }
@@ -36,8 +46,8 @@
       margin:0
     }
     .status {
-      background:#fff;
-      border:1px solid #d8e3eb;
+      background:var(--surface);
+      border:1px solid var(--border);
       border-radius:30px;
       padding:9px 13px;
       font-size:12px
@@ -46,14 +56,14 @@
       color:var(--green)
     }
     .clock {
-      background:var(--ink);
-      color:white;
+      background:var(--clock);
+      color:var(--clock-text);
       padding:32px;
       border-radius:24px
     }
     .label {
       font-size:13px;
-      color:#bdccda
+      color:var(--clock-muted)
     }
     .count {
       font-family:ui-monospace,"SFMono-Regular",monospace;
@@ -71,8 +81,8 @@
       gap:20px;
       margin:20px 0;
       padding:24px;
-      background:#fff;
-      border:1px solid #d8e3eb;
+      background:var(--surface);
+      border:1px solid var(--border);
       border-radius:20px
     }
     .credit {
@@ -105,7 +115,7 @@
       display:block;
       width:18px;
       height:18px;
-      background:#fff;
+      background:var(--surface);
       border-radius:50%;
       transition:transform .15s
     }
@@ -131,22 +141,22 @@
       cursor:pointer
     }
     button.secondary {
-      background:#dfe9f0;
+      background:var(--secondary);
       color:var(--ink)
     }
     button:disabled {
       opacity:.5;
       cursor:default
     }
-    button:focus-visible,summary:focus-visible {
-      outline:3px solid #4bb8ad;
+    button:focus-visible,summary:focus-visible,a:focus-visible,input:focus-visible {
+      outline:3px solid var(--focus);
       outline-offset:3px
     }
     #error {
       display:none;
       padding:15px;
-      background:#fff0ed;
-      color:#9c412c;
+      background:var(--danger-bg);
+      color:var(--danger-ink);
       border-radius:12px;
       font-size:13px;
       line-height:1.7;
@@ -162,11 +172,11 @@
     .connection-field { margin-top: 14px; }
     .connection-field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
     .connection-value { display: flex; gap: 8px; }
-    .connection-value input { min-width: 0; width: 100%; border: 1px solid #c8d7e2; border-radius: 9px; padding: 10px; color: var(--ink); background: #fff; font-size: 12px; }
+    .connection-value input { min-width: 0; width: 100%; border: 1px solid var(--border); border-radius: 9px; padding: 10px; color: var(--ink); background: #fff; font-size: 12px; }
     .connection-value button { padding: 9px 12px; flex-shrink: 0; }
     details {
       margin-top:22px;
-      border-top:1px solid #d8e3eb;
+      border-top:1px solid var(--border);
       padding-top:18px
     }
     summary {
@@ -202,6 +212,47 @@
     }
 
     }
+    a { color: var(--green); text-underline-offset: 3px; }
+    main, section, .row > div, .switchline > div, .connection-value { min-width: 0; }
+    p, #reset, #feedback, #error, .status, .connection-field label { overflow-wrap: anywhere; }
+    button { max-width: 100%; white-space: normal; }
+    .switch { max-width: none; }
+    .clock.paused { box-shadow: inset 0 0 0 2px #8ea4b5; }
+    .clock.paused .count { color: var(--clock-muted); }
+    .paused-note { display: none; margin-top: 12px; font-size: 13px; color: var(--clock-muted); }
+    .clock.paused .paused-note { display: block; }
+    #freshness { margin: 10px 0 0; font-size: 12px; color: var(--muted); line-height: 1.6; }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --ink: #e0eaf3;
+        --muted: #adbfce;
+        --green: #6ddac6;
+        --page: #111d29;
+        --surface: #1b2b3a;
+        --border: #415466;
+        --secondary: #304557;
+        --clock: #213c52;
+        --clock-text: #f0f7fd;
+        --clock-muted: #bfd1df;
+        --danger-bg: #422d2b;
+        --danger-ink: #ffd0bd;
+        --focus: #81e1d0;
+      }
+      button:not(.secondary):not(.switch) { color: #102c28; }
+      .switch::before { background: #fff; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition: none !important; animation: none !important; }
+    }
+    @media (max-width: 350px) {
+      header { flex-wrap: wrap; gap: 10px; }
+      .clock { padding: 20px; }
+      .count { font-size: 38px; letter-spacing: -2px; }
+      .row { gap: 12px; padding: 18px; }
+      .credit { font-size: 30px; }
+      .connection-value { flex-wrap: wrap; }
+      .connection-value input { flex-basis: 100%; }
+    }
 </style>
 <main>
 <header>
@@ -214,7 +265,9 @@
 <div class="label">距离下一次五小时额度刷新</div>
 <div class="count" id="count">--:--:--</div>
 <div id="reset">等待读取刷新时间</div>
+<div class="paused-note">提醒已暂停 · 倒计时继续更新</div>
 </section>
+<p id="freshness">最近读取：尚未获取数据</p>
 <section class="row">
 <div>
 <div>赠送重置次数</div>
@@ -279,7 +332,20 @@
       }
     }
 
+    function updateFreshness() {
+      const fetched = data?.fetched_at;
+      if (typeof fetched !== 'number' || !Number.isFinite(fetched) || fetched <= 0) {
+        $('freshness').textContent = '最近读取：尚未成功获取实时额度';
+        return;
+      }
+      const minutes = Math.floor(Math.max(0, Date.now() / 1000 - fetched) / 60);
+      $('freshness').textContent = '最近读取：' + (minutes < 1 ? '刚刚' : minutes + ' 分钟前')
+        + ' · 读取失败时保留上次数据';
+      $('freshness').title = '实时额度成功读取时间：' + stamp(fetched) + '；不是监测进程的检查时间';
+    }
+
     function tick() {
+      updateFreshness();
       if (!data?.reset) {
         $('count').textContent = '--:--:--';
         return;
@@ -295,6 +361,7 @@
       const credits = data.credits || {};
       token = data.csrf_token || '';
       const enabled = data.notifications_enabled !== false;
+      document.querySelector('.clock').classList.toggle('paused', !enabled);
       $('notifications').setAttribute('aria-checked', String(enabled));
       $('notifications').disabled = saving || !token;
       $('toggleHint').textContent = enabled

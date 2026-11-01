@@ -16,6 +16,20 @@ import time
 DEFAULT_STATE = Path.home() / 'Library/Application Support/CodexResetAlarm/state.json'
 
 
+def monitor_running(path=DEFAULT_STATE):
+    """Probe an existing monitor lock without creating or modifying files."""
+    try:
+        with path.with_suffix('.lock').open('r') as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return True
+            fcntl.flock(lock, fcntl.LOCK_UN)
+    except OSError:
+        return False
+    return False
+
+
 def valid_reset(value):
     return isinstance(value, (int, float)) and not isinstance(value, bool) and 0 < value < 10**12
 
@@ -241,8 +255,7 @@ def main(argv=None):
             alert()
         elif args.command == 'status':
             saved = read_state(args.state)
-            heartbeat = saved.get('heartbeat', 0)
-            print('监测状态：' + ('运行中（最近心跳）' if time.time() - heartbeat < 120 else '未运行或心跳过期'))
+            print('监测状态：' + ('运行中' if monitor_running(args.state) else '未运行'))
             for key in ('last_check', 'last_alarm'):
                 if saved.get(key):
                     print(key + '：' + format_time(saved[key]))
