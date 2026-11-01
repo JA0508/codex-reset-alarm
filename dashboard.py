@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Loopback-only dashboard; does not start a monitor."""
 import hmac
+import re
+import ipaddress
 import preferences
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -56,6 +58,44 @@ def snapshot():
                        'instructions': '在电脑运行启动iPhone同步.command，然后按iPhone设置.md在手机创建快捷指令；手机需亲自运行，网页无法确认闹钟已创建。'}}
 
 
+def connection_info():
+    # Lazy import avoids the dashboard/bridge module initialization cycle.
+    import iphone_bridge
+    unavailable = {'available': False, 'action': '请先安装或启动 iPhone 同步服务，然后刷新。'}
+    try:
+        if not iphone_bridge.TOKEN_PATH.exists():
+            return unavailable
+        token = iphone_bridge.TOKEN_PATH.read_text().strip()
+        if not re.fullmatch(r'[A-Za-z0-9_-]{32,128}', token):
+            return {'available': False, 'action': '连接配置无效，请重新配置 iPhone 同步服务。'}
+        if not iphone_bridge.existing_service('127.0.0.1', token):
+            return unavailable
+        hostname = iphone_bridge.stable_address()
+        valid_hostname = isinstance(hostname, str) and re.fullmatch(r'[A-Za-z0-9-]+\.local', hostname)
+        if not valid_hostname:
+            try:
+                parsed = ipaddress.IPv4Address(hostname)
+                valid_hostname = not parsed.is_loopback and not parsed.is_unspecified
+            except (ValueError, TypeError):
+                pass
+        if not valid_hostname:
+            return {'available': False, 'action': '未找到稳定主机名，请检查系统共享设置。'}
+        base = f'http://{hostname}:8766/{token}/'
+        result = {'available': True, 'hostname_url': base, 'data_url': base + 'alarm.json',
+                  'ip_url': None, 'ip_data_url': None}
+        try:
+            address = str(ipaddress.IPv4Address(iphone_bridge.local_ip()))
+            if ipaddress.IPv4Address(address).is_loopback or ipaddress.IPv4Address(address).is_unspecified:
+                raise ValueError('No LAN address')
+            ip_base = f'http://{address}:8766/{token}/'
+            result.update(ip_url=ip_base, ip_data_url=ip_base + 'alarm.json')
+        except (OSError, ValueError):
+            pass
+        return result
+    except (OSError, ValueError):
+        return {'available': False, 'action': '暂时无法读取连接配置，请检查同步服务后刷新。'}
+
+
 class Handler(BaseHTTPRequestHandler):
     def respond(self, status, content, content_type='application/json; charset=utf-8'):
         body = content if isinstance(content, bytes) else json.dumps(content, ensure_ascii=False).encode()
@@ -72,6 +112,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if not allowed_host(self.headers.get('Host')):
             return self.respond(403, {'error': 'Invalid Host'})
+        if self.path == '/api/connection':
+            return self.respond(200, connection_info())
         if self.path == '/api/status':
             return self.respond(200, snapshot())
         if self.path == '/iphone-setup':

@@ -32,3 +32,40 @@ class CacheTests(unittest.TestCase):
                 self.assertEqual(failed['error'], 'offline')
         finally:
             dashboard.CACHE.update(original)
+
+class ConnectionTests(unittest.TestCase):
+    def test_no_token_does_not_generate(self):
+        from unittest.mock import patch
+        import iphone_bridge
+        with patch.object(iphone_bridge.TOKEN_PATH.__class__, 'exists', return_value=False), patch('iphone_bridge.load_token') as load:
+            value = dashboard.connection_info()
+            self.assertFalse(value['available'])
+            load.assert_not_called()
+    def test_connection_urls(self):
+        from unittest.mock import patch
+        import iphone_bridge
+        with patch.object(iphone_bridge.TOKEN_PATH.__class__, 'exists', return_value=True), patch.object(iphone_bridge.TOKEN_PATH.__class__, 'read_text', return_value='a'*43), patch('iphone_bridge.existing_service', return_value=True), patch('iphone_bridge.stable_address', return_value='Mac.local'), patch('iphone_bridge.local_ip', return_value='192.168.1.3'):
+            value = dashboard.connection_info()
+            self.assertTrue(value['available'])
+            self.assertTrue(value['hostname_url'].startswith('http://Mac.local:8766/'))
+            self.assertTrue(value['ip_data_url'].endswith('/alarm.json'))
+    def test_invalid_token_not_exposed(self):
+        from unittest.mock import patch
+        import iphone_bridge
+        with patch.object(iphone_bridge.TOKEN_PATH.__class__, 'exists', return_value=True), patch.object(iphone_bridge.TOKEN_PATH.__class__, 'read_text', return_value='../bad'):
+            value = dashboard.connection_info()
+            self.assertFalse(value['available'])
+            self.assertNotIn('../bad', str(value))
+
+class ConnectionHostTests(unittest.TestCase):
+    def test_host_rejected_before_connection_lookup(self):
+        from unittest.mock import Mock, patch
+        for headers in ({}, {'Host': 'evil.example'}):
+            handler = object.__new__(dashboard.Handler)
+            handler.headers = headers
+            handler.path = '/api/connection'
+            handler.respond = Mock()
+            with patch('dashboard.connection_info') as connection:
+                handler.do_GET()
+                connection.assert_not_called()
+            self.assertEqual(handler.respond.call_args.args[0], 403)

@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 常见问题与排查
+    url: https://github.com/JA0508/codex-reset-alarm/blob/main/docs/FAQ.md
+    about: 提交前查看端口、权限、手机同步及提醒开关说明。

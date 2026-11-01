@@ -1,0 +1,53 @@
+name: 故障反馈 / Bug report
+description: 报告安装、网页、提醒或手机同步问题。
+title: '[Bug] '
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请勿粘贴带令牌的完整网址、Codex 凭据、本机用户名或未经脱敏的日志。
+        可先运行 `python3 doctor.py --json` 检查环境。手机闹钟是否创建需在 iPhone 的“时钟”中确认。
+  - type: input
+    id: environment
+    attributes:
+      label: 运行环境
+      description: macOS、Python、Codex 版本；手机问题请补充 iOS 版本。
+      placeholder: macOS / Python / Codex / iOS
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 问题位置
+      options:
+        - 安装与后台服务
+        - 网页与提醒开关
+        - 电脑响铃
+        - iPhone 快捷指令或局域网
+        - 额度读取
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 复现步骤、预期和实际结果
+      placeholder: |
+        1. 执行……
+        2. 看到……
+        预期：……
+        实际：……
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: 脱敏诊断结果（可选）
+      description: 可以粘贴 doctor 的 JSON；请先核对是否含有私人信息。
+      render: json
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我已移除访问令牌、专属链接和登录凭据。
+          required: true

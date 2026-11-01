@@ -4,6 +4,7 @@ import argparse
 import sys
 import datetime
 import errno
+import ipaddress
 import http.client
 import hmac
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -69,7 +70,13 @@ def stable_address():
             return value + '.local'
     except (OSError, subprocess.SubprocessError):
         pass
-    return 'localhost'
+    try:
+        address = ipaddress.ip_address(local_ip())
+        if not address.is_loopback and not address.is_unspecified:
+            return str(address)
+    except (OSError, ValueError):
+        pass
+    return None
 
 
 def phone_status():
@@ -82,7 +89,7 @@ def phone_status():
 
 def handler_for(token):
     csrf = secrets.token_urlsafe(32)
-    hosts = {'localhost:8766', '127.0.0.1:8766', stable_address().lower() + ':8766'}
+    hosts = {'localhost:8766', '127.0.0.1:8766', (stable_address() or 'localhost').lower() + ':8766'}
     try:
         hosts.add(local_ip() + ':8766')
     except OSError:
@@ -176,6 +183,9 @@ def main(argv=()):
         print(str(error), file=sys.stderr)
         return 1
     address = stable_address()
+    if not address:
+        print('未找到可供手机访问的地址，请连接局域网后重试。', flush=True)
+        return 1
     try:
         server = ThreadingHTTPServer(('0.0.0.0', 8766), handler_for(token))
     except OSError as error:

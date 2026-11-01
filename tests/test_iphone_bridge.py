@@ -52,3 +52,10 @@ class PrivacyTests(unittest.TestCase):
             server.return_value.serve_forever.side_effect = KeyboardInterrupt
             self.assertEqual(bridge.main(['--quiet']), 0)
             self.assertNotIn('private-test-token', str(output.call_args_list))
+
+class AddressFallbackTests(unittest.TestCase):
+    def test_fallback_never_points_phone_to_loopback(self):
+        with patch('iphone_bridge.subprocess.run', side_effect=OSError), patch('iphone_bridge.local_ip', return_value='127.0.0.1'):
+            self.assertIsNone(bridge.stable_address())
+        with patch('iphone_bridge.subprocess.run', side_effect=OSError), patch('iphone_bridge.local_ip', return_value='192.168.1.9'):
+            self.assertEqual(bridge.stable_address(), '192.168.1.9')
