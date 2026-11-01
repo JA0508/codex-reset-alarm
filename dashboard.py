@@ -50,7 +50,9 @@ def snapshot():
             'last_check': state.get('last_check'), 'last_alarm': state.get('last_alarm'),
             'error': error or state.get('last_error', ''), 'csrf_token': TOKEN,
             'test_alarm_active': ALARM_LOCK.locked(), 'state': redact(state),
-            'limits': redact(limits)}
+            'limits': redact(limits),
+            'iphone': {'status': '未确认', 'configured': False,
+                       'instructions': '在电脑运行启动iPhone同步.command，然后按iPhone设置.md在手机创建快捷指令；手机需亲自运行，网页无法确认闹钟已创建。'}}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -69,6 +71,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.respond(403, {'error': 'Invalid Host'})
         if self.path == '/api/status':
             return self.respond(200, snapshot())
+        if self.path == '/iphone-setup':
+            return self.respond(200, (ROOT / 'iPhone设置.md').read_bytes(), 'text/plain; charset=utf-8')
         if self.path == '/':
             try:
                 return self.respond(200, (ROOT / 'web/index.html').read_bytes(), 'text/html; charset=utf-8')
