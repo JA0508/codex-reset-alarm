@@ -6,3 +6,19 @@ node_modules/
 state*.json
 .env
 *.plist
+
+# Local credentials and generated runtime files
+iphone-token
+preferences.json
+runtime/
+.runtime/
+.cache/
+.pytest_cache/
+.coverage
+.coverage.*
+coverage/
+htmlcov/
+*.cover
+*.secret
+secrets/
+.env.*
