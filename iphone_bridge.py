@@ -92,6 +92,9 @@ def handler_for(token):
             self.send_header('Content-Type', content_type)
             self.send_header('Cache-Control', 'no-store')
             self.send_header('Content-Length', str(len(body)))
+            self.send_header('Referrer-Policy', 'no-referrer')
+            self.send_header('X-Content-Type-Options', 'nosniff')
+            self.send_header('X-Frame-Options', 'DENY')
             self.end_headers()
             self.wfile.write(body)
 
@@ -105,9 +108,9 @@ def handler_for(token):
             if self.path == prefix + 'api/status':
                 return self.reply(200, {**phone_status(), 'csrf_token': csrf})
             if self.path in (prefix, prefix + 'iphone-setup'):
-                document = dashboard.ROOT / ('web/index.html' if self.path == prefix else 'iPhone设置.md')
+                document = dashboard.ROOT / ('web/index.html' if self.path == prefix else 'web/iphone-setup.html')
                 return self.reply(200, document.read_bytes(),
-                                  'text/html; charset=utf-8' if self.path == prefix else 'text/plain; charset=utf-8')
+                                  'text/html; charset=utf-8')
             if not preferences.enabled():
                 return self.reply(200, {'enabled': False, 'date': None, 'label': 'Codex 额度重置'})
             reset = None

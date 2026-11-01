@@ -64,6 +64,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Length', str(len(body)))
         self.send_header('Cache-Control', 'no-store')
         self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('Referrer-Policy', 'no-referrer')
+        self.send_header('X-Frame-Options', 'DENY')
         self.end_headers()
         self.wfile.write(body)
 
@@ -73,7 +75,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == '/api/status':
             return self.respond(200, snapshot())
         if self.path == '/iphone-setup':
-            return self.respond(200, (ROOT / 'iPhone设置.md').read_bytes(), 'text/plain; charset=utf-8')
+            return self.respond(200, (ROOT / 'web/iphone-setup.html').read_bytes(), 'text/html; charset=utf-8')
         if self.path == '/':
             try:
                 return self.respond(200, (ROOT / 'web/index.html').read_bytes(), 'text/html; charset=utf-8')
