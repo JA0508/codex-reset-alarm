@@ -55,3 +55,11 @@ python3 -m trace --count --summary --missing --coverdir /tmp/codex-alarm-coverag
 已提供 `安装登录启动.command` 和 `卸载登录启动.command`，仅在用户双击安装后才修改登录项。`python3 launchd_setup.py` 只生成 plist，不安装。安装后通过 `查看额度.command` 查看心跳；日志在 `/tmp/codex-reset-alarm.log` 和 `/tmp/codex-reset-alarm.error.log`。安装前关闭已有终端监测，避免单实例锁冲突。
 
 双击 `试听闹铃.command` 可检查持续响铃和停止按钮。上游独立 CLI 入口为 `node upstream/codex-quota-watcher/src/cli.mjs --help`（需要 Node.js 20+），来源和许可证见 `UPSTREAM.md` 及上游目录。
+
+## 网页控制台
+
+双击 `启动网页.command`，或执行 `python3 dashboard.py` 后打开 http://127.0.0.1:8765 。
+
+页面展示监测心跳、真实额度刷新倒计时、赠送次数、最近检查和提醒记录，可触发电脑试听。网页服务和闹钟监测分别运行；打开网页不会重复启动监测，关闭网页不会停止已有闹钟。网页服务终端需要保持运行。
+
+仅监听本机回环地址，不对互联网或局域网开放。iPhone 系统闹钟仍未接通；页面按钮触发的是 Mac 的声音。赠送次数的下一次发放日期没有可靠数据时显示未知。
