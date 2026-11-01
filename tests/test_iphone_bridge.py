@@ -38,3 +38,17 @@ class PhoneTests(unittest.TestCase):
         with patch('iphone_bridge.subprocess.run') as run:
             run.return_value.stdout = 'My-Mac\n'
             self.assertEqual(bridge.stable_address(), 'My-Mac.local')
+
+class PrivacyTests(unittest.TestCase):
+    def test_invalid_saved_token_is_not_accepted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'token'
+            path.write_text('')
+            with self.assertRaises(RuntimeError):
+                bridge.load_token(path)
+
+    def test_quiet_start_does_not_print_access_token(self):
+        with patch('iphone_bridge.load_token', return_value='private-test-token'), patch('iphone_bridge.stable_address', return_value='test.local'), patch('iphone_bridge.ThreadingHTTPServer') as server, patch('builtins.print') as output:
+            server.return_value.serve_forever.side_effect = KeyboardInterrupt
+            self.assertEqual(bridge.main(['--quiet']), 0)
+            self.assertNotIn('private-test-token', str(output.call_args_list))

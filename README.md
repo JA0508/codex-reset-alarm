@@ -1,5 +1,7 @@
 # Codex Reset Alarm
 
+[English](README.en.md)
+
 [![Tests](https://github.com/JA0508/codex-reset-alarm/actions/workflows/tests.yml/badge.svg)](https://github.com/JA0508/codex-reset-alarm/actions/workflows/tests.yml) · [MIT License](LICENSE)
 
 在 Mac 上跟踪 Codex 五小时额度刷新时间，到时持续响铃。用一个本地网页查看倒计时、运行状态与赠送重置次数，也可以通过 iPhone 快捷指令创建手机系统闹钟。
@@ -16,6 +18,10 @@
 - **赠送次数监测**：次数增加时提醒；没有可靠日期时，下次赠送显示未知。
 - **登录后台运行**：监测、网页与手机桥接由 macOS 登录服务管理。
 - **iPhone 系统闹钟**：手机运行快捷指令获取时间，删除旧同标签闹钟后创建新闹钟。
+
+## 支持范围
+
+运行环境仅支持 macOS，真实电脑端验证在 macOS 上进行。Linux/Ubuntu 仅用于离线自动测试，不代表支持 Linux 响铃、AppleScript 或登录服务。iPhone 系统闹钟仍须在手机实际运行并确认。
 
 ## 快速开始
 
@@ -104,3 +110,5 @@ python3 doctor.py --json
 ```
 
 检查只读取环境和服务状态，不修改提醒开关、不请求额度、不输出专属访问令牌。端口连通不等同于手机闹钟已创建。
+
+版本变更见 [CHANGELOG.md](CHANGELOG.md)。安装前会检查系统、Python、脚本和 Codex 可执行文件；登录状态仍需通过 `python3 alarm.py status` 确认。

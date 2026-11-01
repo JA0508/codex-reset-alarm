@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Explicitly started, read-only LAN bridge for an iPhone Shortcut."""
+import argparse
+import sys
 import datetime
 import errno
 import http.client
@@ -27,7 +29,10 @@ def load_token(path=TOKEN_PATH):
         descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     except FileExistsError:
         path.chmod(0o600)
-        return path.read_text().strip()
+        token = path.read_text().strip()
+        if not re.fullmatch(r'[A-Za-z0-9_-]{32,128}', token):
+            raise RuntimeError('手机访问令牌文件损坏，请停止服务并重新配置手机链接。')
+        return token
     with os.fdopen(descriptor, 'w') as output:
         token = secrets.token_urlsafe(32)
         output.write(token)
@@ -161,32 +166,42 @@ def existing_service(address, token):
         connection.close()
 
 
-def main():
-    token = load_token()
+def main(argv=()):
+    parser = argparse.ArgumentParser(description='iPhone 局域网同步与网页服务')
+    parser.add_argument('--quiet', action='store_true', help='后台运行时不打印专属链接')
+    args = parser.parse_args(argv)
+    try:
+        token = load_token()
+    except (OSError, RuntimeError) as error:
+        print(str(error), file=sys.stderr)
+        return 1
     address = stable_address()
     try:
         server = ThreadingHTTPServer(('0.0.0.0', 8766), handler_for(token))
     except OSError as error:
         if error.errno in (errno.EADDRINUSE, 48, 98) and existing_service('127.0.0.1', token):
             print('iPhone 同步服务已在运行，无需重复启动。', flush=True)
-            print(f'稳定网页：http://{address}:8766/{token}/', flush=True)
-            print(f'专属 URL（请勿分享）：http://{address}:8766/{token}/alarm.json', flush=True)
+            if not args.quiet:
+                print(f'稳定网页：http://{address}:8766/{token}/', flush=True)
+                print(f'专属 URL（请勿分享）：http://{address}:8766/{token}/alarm.json', flush=True)
             return 0
         print('无法启动：端口 8766 已被其他服务或旧版本占用。请关闭对应服务后重试。'
               if error.errno in (errno.EADDRINUSE, 48, 98) else
               '无法绑定局域网地址，请检查网络连接和系统权限。', flush=True)
         return 1
-    print('仅在你信任的同一 Wi-Fi 中使用。请勿分享以下专属链接：', flush=True)
-    print(f'稳定网页：http://{address}:8766/{token}/', flush=True)
-    print(f'http://{address}:8766/{token}/alarm.json', flush=True)
-    print('将链接填入 iPhone 快捷指令；按 Control+C 停止。', flush=True)
+    if not args.quiet:
+        print('仅在你信任的同一 Wi-Fi 中使用。请勿分享以下专属链接：', flush=True)
+        print(f'稳定网页：http://{address}:8766/{token}/', flush=True)
+        print(f'http://{address}:8766/{token}/alarm.json', flush=True)
+        print('将链接填入 iPhone 快捷指令；按 Control+C 停止。', flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
         server.server_close()
+    return 0
 
 
 if __name__ == '__main__':
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))
