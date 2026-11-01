@@ -1,65 +1,37 @@
 # Codex 额度闹钟
 
-macOS 本地小工具：从已登录的 Codex 读取 **5 小时额度窗口的实际重置时间**，到时播放系统提示音并弹出提醒对话框。重置时间由 Codex 提供，不是从启动工具时机械倒数 5 小时。
+macOS 本地工具，读取已登录 Codex 的真实五小时额度刷新时间，到时持续响铃；网页集中展示倒计时、监测状态和赠送重置次数。需要 Python 3 和已登录 ChatGPT 账号的 Codex，无第三方运行依赖。
 
 ## 使用
 
-需要 macOS、Python 3（建议 3.10 或以上）和已登录 ChatGPT 账号的 Codex。没有第三方 Python 依赖。
+1. 双击 `安装登录启动.command`，安装闹钟监测、网页和 iPhone 同步三个登录服务。安装后无需保持终端打开。
+2. 双击 `启动网页.command`，查看本机控制台：`http://127.0.0.1:8765`。
+3. 点击网页“试听电脑闹铃”，确认音量和停止按钮正常。响铃最多持续 5 分钟，电脑休眠时会在唤醒后补报。
 
-1. 双击 `查看额度.command`，确认能读取下一次重置时间。
-2. 双击 `启动闹钟.command`，保持打开的终端窗口运行。
-3. 到重置时间，电脑播放提示音并弹窗。按 `Control+C` 停止监测。
+双击 `卸载登录启动.command` 可停止并移除登录服务。关闭网页不会停止闹钟。`查看额度.command` 可在终端查看状态；`启动闹钟.command` 用于手动运行监测，已有后台监测时不要重复运行。
 
-首次运行若 macOS 拦截 `.command`，可以在终端进入本文件夹执行下方命令。音量、静音状态与系统对终端的自动化权限可能影响提示；可先运行测试提醒检查。
+## iPhone 系统闹钟
 
-```sh
-python3 alarm.py status
-python3 alarm.py run
-python3 alarm.py test-alarm
-```
+按 [iPhone设置.md](iPhone设置.md) 在手机安装快捷指令。电脑和手机需连接同一个可信 Wi-Fi，手机通过带随机令牌的只读地址取得刷新时间，并在手机创建系统闹钟。稳定地址使用电脑的 `.local` 主机名；令牌仅保存在本机，不提交到 GitHub。
 
-默认优先使用 PATH 中的 `codex`，其次使用存在的 `~/.local/bin/codex`，最后尝试 Codex 桌面应用内置路径。可指定其他路径：
+手机快捷指令尚未执行时，不能认为手机闹钟已经创建。iPhone 时钟按时分响铃，时间向上取整到分钟；快捷指令需要删除旧的同标签闹钟后创建新闹钟，避免重复。电脑休眠或离线时，手机无法获取新的时间。
 
-```sh
-python3 alarm.py status --codex '/Applications/Codex.app/Contents/Resources/codex'
-python3 alarm.py run --interval 30
-```
+## 数据与状态
 
-## 行为和边界
+- 监测默认每 60 秒读取额度，网页定时更新显示；已保存的时间到期后只提醒一次。
+- 赠送重置次数增加时提醒；首次读取只建立基线。没有官方日期时，下次赠送时间显示未知，不按固定周期推测。
+- 状态：`~/Library/Application Support/CodexResetAlarm/state.json`。
+- 登录服务日志：同目录 `logs/`；iPhone 访问令牌：同目录 `iphone-token`。
+- 不读取或上传 Codex 登录凭据，不自动兑换赠送次数。网页本机入口只监听 `127.0.0.1:8765`；iPhone 桥接只提供受随机令牌保护的读取接口，请勿在公共 Wi-Fi 使用或分享专属地址。
 
-- 默认每 60 秒读取额度；已记录的重置时间临近时会缩短等待。
-- 通过 `codex app-server` 的标准输入输出 RPC 读取 `account/rateLimits/read`；不读取或保存登录凭据，不上传数据。
-- 读取失败会重试，已保存的闹钟仍可到时触发。
-- 同一重置时间只提醒一次；本机同一状态路径只允许一个监测进程。
-- 状态保存在 `~/Library/Application Support/CodexResetAlarm/state.json`。`--state` 可指定其他文件。
-- 电脑休眠时不能播放声音；唤醒并恢复运行后会补报已记录且未提醒的重置时间。首次观察到的过期时间不会误报。
-- 必须保持程序运行。关闭终端、退出程序或关机后不会在后台自行运行；本项目没有安装开机启动项。
-- 优先读取 `codex` 额度桶，避免其他产品的旧重置时间影响提醒；其次读取默认额度桶，均缺失时才选择其他桶中最近的 5 小时重置时间。API key 账号或未提供 5 小时窗口的账号可能无法使用。
-- 提醒表示窗口已到重置时间；实际可用额度以 Codex 页面为准。Codex app-server 接口若变更，工具可能需要同步更新。
-
-## 验证
+## 开发与验证
 
 ```sh
 python3 -m unittest discover -s tests -v
-python3 -m trace --count --summary --missing --coverdir /tmp/codex-alarm-coverage --module unittest discover -s tests
+python3 dashboard.py
+python3 alarm.py status
 ```
 
-自动测试覆盖窗口解析、过期首次启动、休眠补报、去重、失败重试、状态保存、模拟 RPC、CLI 和提醒调用。真实声音与系统弹窗需通过 `test-alarm` 在本机验证。
+接口若变更可能需要更新程序；实际可用额度以 Codex 显示为准。开源参考来源见 [UPSTREAM.md](UPSTREAM.md)。
 
-## 持续闹铃与后台状态
-
-闹铃会循环播放，点击“停止闹铃”停止，最多播放 5 分钟。`status` 显示最近心跳、检查、提醒和错误；心跳超过 120 秒显示过期。系统音量仍需开启。
-
-程序会保存接口提供的赠送额度重置次数，后续 `availableCount` 增加时响铃，首次读取不提醒。状态输出包含接口返回的赠送次数及到期字段；接口未提供的未来赠送日期无法预测。
-
-已提供 `安装登录启动.command` 和 `卸载登录启动.command`，仅在用户双击安装后才修改登录项。`python3 launchd_setup.py` 只生成 plist，不安装。安装后通过 `查看额度.command` 查看心跳；日志在 `/tmp/codex-reset-alarm.log` 和 `/tmp/codex-reset-alarm.error.log`。安装前关闭已有终端监测，避免单实例锁冲突。
-
-双击 `试听闹铃.command` 可检查持续响铃和停止按钮。上游独立 CLI 入口为 `node upstream/codex-quota-watcher/src/cli.mjs --help`（需要 Node.js 20+），来源和许可证见 `UPSTREAM.md` 及上游目录。
-
-## 网页控制台
-
-双击 `启动网页.command`，或执行 `python3 dashboard.py` 后打开 http://127.0.0.1:8765 。
-
-页面展示监测心跳、真实额度刷新倒计时、赠送次数、最近检查和提醒记录，可触发电脑试听。网页服务和闹钟监测分别运行；打开网页不会重复启动监测，关闭网页不会停止已有闹钟。网页服务终端需要保持运行。
-
-仅监听本机回环地址，不对互联网或局域网开放。iPhone 系统闹钟仍未接通；页面按钮触发的是 Mac 的声音。赠送次数的下一次发放日期没有可靠数据时显示未知。
+实现参考：github.com/sui-ni2/codex-quota-watcher；该项目未作为运行依赖。

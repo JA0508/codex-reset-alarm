@@ -1,6 +1,0 @@
-node_modules/
-.DS_Store
-coverage/
-*.log
-.codex-quota-watcher-state.json
-.probe-state.json

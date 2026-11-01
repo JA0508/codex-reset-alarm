@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """Explicitly started, read-only LAN bridge for an iPhone Shortcut."""
 import datetime
+import errno
+import http.client
 import hmac
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import math
+import re
+import dashboard
 import os
 from pathlib import Path
 import secrets
@@ -51,23 +55,52 @@ def local_ip():
     return socket.gethostbyname(socket.gethostname())
 
 
+def stable_address():
+    try:
+        value = subprocess.run(['/usr/sbin/scutil', '--get', 'LocalHostName'],
+                               capture_output=True, text=True, timeout=3).stdout.strip()
+        if re.fullmatch(r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?', value):
+            return value + '.local'
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return 'localhost'
+
+
+def phone_status():
+    snapshot = dashboard.snapshot()
+    safe = {key: snapshot.get(key) for key in
+            ('running', 'reset', 'credits', 'last_check', 'last_alarm', 'error')}
+    return {**safe, 'test_alarm_active': False, 'phone_mode': True,
+            'alarm_url': 'alarm.json'}
+
+
 def handler_for(token):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass  # Never write the secret URL to access logs.
 
-        def reply(self, code, payload):
-            body = json.dumps(payload, ensure_ascii=False).encode()
+        def reply(self, code, payload, content_type='application/json; charset=utf-8'):
+            body = payload if isinstance(payload, bytes) else json.dumps(payload, ensure_ascii=False).encode()
             self.send_response(code)
-            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Content-Type', content_type)
             self.send_header('Cache-Control', 'no-store')
             self.send_header('Content-Length', str(len(body)))
             self.end_headers()
             self.wfile.write(body)
 
         def do_GET(self):
-            if not valid_path(self.path, token):
+            prefix = '/' + token + '/'
+            paths = [prefix + suffix for suffix in ('', 'health', 'api/status', 'alarm.json', 'iphone-setup')]
+            if not any(hmac.compare_digest(self.path, path) for path in paths):
                 return self.reply(404, {'error': 'Not found'})
+            if self.path == prefix + 'health':
+                return self.reply(200, {'service': 'codex-reset-alarm-iphone-v1'})
+            if self.path == prefix + 'api/status':
+                return self.reply(200, phone_status())
+            if self.path in (prefix, prefix + 'iphone-setup'):
+                document = dashboard.ROOT / ('web/index.html' if self.path == prefix else 'iPhone设置.md')
+                return self.reply(200, document.read_bytes(),
+                                  'text/html; charset=utf-8' if self.path == prefix else 'text/plain; charset=utf-8')
             reset = None
             try:
                 reset = alarm.five_hour_reset(alarm.fetch_limits(alarm.default_codex()))
@@ -88,13 +121,36 @@ def handler_for(token):
     return Handler
 
 
+def existing_service(address, token):
+    connection = http.client.HTTPConnection(address, 8766, timeout=2)
+    try:
+        connection.request('GET', '/' + token + '/health')
+        response = connection.getresponse()
+        return response.status == 200 and json.loads(response.read(1024)) == {
+            'service': 'codex-reset-alarm-iphone-v1'}
+    except (OSError, ValueError, http.client.HTTPException):
+        return False
+    finally:
+        connection.close()
+
+
 def main():
     token = load_token()
-    address = local_ip()
-    if address.startswith('127.') or address == '0.0.0.0':
-        raise RuntimeError('未找到局域网地址，请连接 Wi-Fi 后重试')
-    server = ThreadingHTTPServer((address, 8766), handler_for(token))
+    address = stable_address()
+    try:
+        server = ThreadingHTTPServer(('0.0.0.0', 8766), handler_for(token))
+    except OSError as error:
+        if error.errno in (errno.EADDRINUSE, 48, 98) and existing_service('127.0.0.1', token):
+            print('iPhone 同步服务已在运行，无需重复启动。', flush=True)
+            print(f'稳定网页：http://{address}:8766/{token}/', flush=True)
+            print(f'专属 URL（请勿分享）：http://{address}:8766/{token}/alarm.json', flush=True)
+            return 0
+        print('无法启动：端口 8766 已被其他服务或旧版本占用。请关闭对应服务后重试。'
+              if error.errno in (errno.EADDRINUSE, 48, 98) else
+              '无法绑定局域网地址，请检查网络连接和系统权限。', flush=True)
+        return 1
     print('仅在你信任的同一 Wi-Fi 中使用。请勿分享以下专属链接：', flush=True)
+    print(f'稳定网页：http://{address}:8766/{token}/', flush=True)
     print(f'http://{address}:8766/{token}/alarm.json', flush=True)
     print('将链接填入 iPhone 快捷指令；按 Control+C 停止。', flush=True)
     try:
@@ -106,4 +162,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())

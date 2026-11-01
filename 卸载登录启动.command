@@ -1,4 +1,4 @@
 #!/bin/zsh
-launchctl bootout "gui/$(id -u)/local.codex-reset-alarm"
-rm -f "$HOME/Library/LaunchAgents/local.codex-reset-alarm.plist"
-read -r '?按回车关闭'
+cd -- "${0:A:h}" || exit 1
+python3 launchd_setup.py uninstall
+read -r "?按回车关闭"
