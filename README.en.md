@@ -6,6 +6,14 @@ A local macOS alarm for the next Codex five-hour quota refresh. View the countdo
 
 ![Dashboard with demonstration data](docs/images/dashboard.png)
 
+## Offline demo without an account
+
+```sh
+python3 demo.py
+```
+
+Open **http://127.0.0.1:8768** to explore a simulated countdown and reminder switch. No Codex login or service installation is required. The demo never connects to Codex, plays sound, or creates Mac or iPhone alarms. Settings exist only in the demo process memory and disappear when it exits; real reminder settings stay untouched.
+
 ## Features
 
 - Reads the actual reset timestamp through the signed-in Codex App Server.

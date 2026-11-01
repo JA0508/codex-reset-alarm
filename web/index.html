@@ -221,6 +221,7 @@
     .clock.paused .count { color: var(--clock-muted); }
     .paused-note { display: none; margin-top: 12px; font-size: 13px; color: var(--clock-muted); }
     .clock.paused .paused-note { display: block; }
+    #demoNotice { margin: -8px 0 20px; padding: 12px 15px; border: 1px solid var(--border); border-radius: 12px; color: var(--green); font-size: 13px; line-height: 1.7; }
     #freshness { margin: 10px 0 0; font-size: 12px; color: var(--muted); line-height: 1.6; }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -259,6 +260,7 @@
 <h1>Codex 额度闹钟</h1>
 <span class="status" id="status">正在连接</span>
 </header>
+<div id="demoNotice" role="note" hidden>离线演示 · 模拟数据，不连接 Codex，不创建闹钟</div>
 <div id="error" role="alert">
 </div>
 <section class="clock">
@@ -292,8 +294,8 @@
 </div>
 <div id="feedback" role="status" aria-live="polite">
 </div>
-<p class="muted">电脑会持续响铃，点击系统弹窗“停止闹铃”结束，最多 5 分钟。休眠期间会在唤醒后补提醒。</p>
-<details>
+<p id="soundHint" class="muted">电脑会持续响铃，点击系统弹窗“停止闹铃”结束，最多 5 分钟。休眠期间会在唤醒后补提醒。</p>
+<details id="phoneSetup">
 <summary>iPhone 系统闹钟 · 待手机配置</summary>
 <p>在电脑点击下方按钮查看并复制手机网页和快捷指令链接，也可打开“启动iPhone同步.command”。手机与电脑连接同一 Wi-Fi，在快捷指令填入链接；运行后到“时钟 → 闹钟”确认启用。</p>
 <div id="connectionTools" hidden>
@@ -339,8 +341,9 @@
         return;
       }
       const minutes = Math.floor(Math.max(0, Date.now() / 1000 - fetched) / 60);
-      $('freshness').textContent = '最近读取：' + (minutes < 1 ? '刚刚' : minutes + ' 分钟前')
-        + ' · 读取失败时保留上次数据';
+      $('freshness').textContent = (data.demo_mode ? '演示数据生成：' : '最近读取：')
+        + (minutes < 1 ? '刚刚' : minutes + ' 分钟前')
+        + (data.demo_mode ? ' · 仅模拟展示' : ' · 读取失败时保留上次数据');
       $('freshness').title = '实时额度成功读取时间：' + stamp(fetched) + '；不是监测进程的检查时间';
     }
 
@@ -364,14 +367,17 @@
       document.querySelector('.clock').classList.toggle('paused', !enabled);
       $('notifications').setAttribute('aria-checked', String(enabled));
       $('notifications').disabled = saving || !token;
-      $('toggleHint').textContent = enabled
-        ? '到刷新时间时响铃提醒'
-        : '提醒已暂停，额度继续更新';
-      $('test').hidden = !!data.phone_mode;
-      $('connectionTools').hidden = !!data.phone_mode;
+      $('demoNotice').hidden = !data.demo_mode;
+      $('phoneSetup').hidden = !!data.demo_mode;
+      $('soundHint').hidden = !!data.demo_mode;
+      $('toggleHint').textContent = data.demo_mode
+        ? (enabled ? '演示提醒已开启 · 仅修改内存中的模拟设置' : '演示提醒已暂停 · 模拟倒计时继续')
+        : (enabled ? '到刷新时间时响铃提醒' : '提醒已暂停，额度继续更新');
+      $('test').hidden = !!data.phone_mode || !!data.demo_mode;
+      $('connectionTools').hidden = !!data.phone_mode || !!data.demo_mode;
       $('test').disabled = !token || !!data.test_alarm_active;
       $('status').classList.toggle('online', !!data.running);
-      $('status').textContent = data.running ? '监测运行中' : '监测未运行 / 心跳过期';
+      $('status').textContent = data.demo_mode ? '演示运行中' : (data.running ? '监测运行中' : '监测未运行 / 心跳过期');
       $('reset').textContent = data.reset
         ? '刷新时间 · ' + stamp(data.reset)
         : '暂未获得五小时刷新时间';
@@ -429,9 +435,9 @@
         });
         data = {...data, notifications_enabled: enabled};
         renderStatus();
-        $('feedback').textContent = enabled
-          ? '闹钟提醒已开启。'
-          : '提醒已暂停，正在播放的电脑闹铃会停止，额度继续更新。已创建的 iPhone 闹钟需运行更新后的快捷指令关闭。';
+        $('feedback').textContent = data.demo_mode
+          ? (enabled ? '演示提醒已开启，仅本次演示有效，不会创建真实闹钟。' : '演示提醒已暂停，未修改任何真实提醒设置。')
+          : (enabled ? '闹钟提醒已开启。' : '提醒已暂停，正在播放的电脑闹铃会停止，额度继续更新。已创建的 iPhone 闹钟需运行更新后的快捷指令关闭。');
       } catch (error) {
         $('feedback').textContent = error.name === 'AbortError'
           ? '保存请求超时，尚未确认结果。请刷新状态后再试。'
@@ -480,6 +486,7 @@
     }
 
     $('connection').onclick = async () => {
+      if (data?.demo_mode || data?.phone_mode) return;
       $('connection').disabled = true;
       $('connectionFeedback').textContent = '正在检查手机桥接服务…';
       $('connectionValues').replaceChildren();
@@ -505,6 +512,7 @@
 
     $('refresh').onclick = load;
     $('test').onclick = async () => {
+      if (data?.demo_mode || data?.phone_mode) return;
       $('test').disabled = true;
       try {
         await request('api/test-alarm', {
