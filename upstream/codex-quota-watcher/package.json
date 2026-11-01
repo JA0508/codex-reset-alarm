@@ -1,0 +1,35 @@
+{
+  "name": "codex-quota-watcher",
+  "version": "0.2.1",
+  "description": "Distinguish scheduled Codex quota refreshes, early resets, and earned reset credits.",
+  "type": "module",
+  "bin": {
+    "codex-quota-watcher": "./src/cli.mjs",
+    "codex-handoff": "./src/handoff-cli.mjs"
+  },
+  "scripts": {
+    "check": "node --check ./src/cli.mjs && node --check ./src/handoff-cli.mjs && node --check ./src/handoff.mjs && node --check ./src/app-server-client.mjs && node --check ./src/state-machine.mjs && node --check ./src/state-store.mjs && node --check ./src/notifiers.mjs && node --check ./src/evidence.mjs && node --check ./src/status-view.mjs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "codex",
+    "openai",
+    "quota",
+    "rate-limit",
+    "notification",
+    "watcher",
+    "handoff",
+    "workspace-continuity"
+  ],
+  "license": "MIT",
+  "files": [
+    "src",
+    "docs",
+    "examples",
+    "README.md",
+    "LICENSE"
+  ]
+}
