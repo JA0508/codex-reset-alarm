@@ -6,107 +6,92 @@
 <title>Codex 额度闹钟</title>
 <link rel="icon" href="data:,">
 <style>
-  :root { color-scheme:light dark; --bg:#f6f8fb; --surface:#fff; --ink:#17243b; --muted:#65748a; --line:#e5eaf1; --accent:#4b56d6; --green:#087f72; --soft:#f0f2fb; --shadow:0 8px 32px #263b5b06; }
+  :root { color-scheme:light dark; --bg:#f5f5f7; --surface:#fff; --ink:#1d1d1f; --muted:#6e6e73; --line:#e5e5e7; --blue:#0066cc; --green:#248a3d; --control:#f0f0f2; --error:#b42318; --error-bg:#fff0ee; }
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif; -webkit-font-smoothing:antialiased; }
-  main { max-width:1120px; margin:0 auto; padding:62px 36px 40px; }
-  header { display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:48px; }
-  .identity { display:flex; align-items:center; gap:13px; }
-  .brand-mark { width:36px; height:36px; border:1px solid var(--line); border-radius:12px; background:var(--surface); display:grid; place-items:center; color:var(--accent); }
-  h1 { font-size:19px; font-weight:650; letter-spacing:-.4px; margin:0; }
-  .brand-sub { color:var(--muted); font-size:11px; letter-spacing:1.5px; margin-top:4px; }
-  .header-actions { display:flex; align-items:center; gap:16px; }
-  .status { display:flex; align-items:center; gap:7px; color:var(--muted); font-size:12px; }
-  .status::before { content:""; width:6px; height:6px; border-radius:50%; background:#9ba8ba; }
-  .status.online::before { background:var(--green); box-shadow:0 0 0 4px #0a99800c; }
-  .layout { display:grid; grid-template-columns:minmax(0,1.75fr) minmax(270px,1fr); gap:22px; align-items:stretch; }
-  .clock,.side { min-width:0; background:var(--surface); border:1px solid var(--line); border-radius:24px; box-shadow:var(--shadow); }
-  .clock { position:relative; padding:40px 36px 32px; overflow:hidden; display:flex; flex-direction:column; }
-  .eyebrow { color:var(--muted); font-size:11px; letter-spacing:1.6px; font-weight:600; }
-  .label { font-size:17px; font-weight:550; margin-top:10px; }
-  .clock-art { position:absolute; right:24px; top:25px; width:92px; height:92px; color:var(--accent); opacity:.28; }
-  .count { font-family:ui-monospace,"SFMono-Regular",Menlo,monospace; font-size:clamp(40px,5.8vw,72px); line-height:1.2; font-weight:400; letter-spacing:-3px; font-variant-numeric:tabular-nums; margin:64px 0 22px; }
-  #reset { font-size:13px; color:var(--muted); line-height:1.6; }
-  .clock-footer { border-top:1px solid var(--line); margin-top:33px; padding-top:20px; display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; align-items:center; }
-  #freshness { margin:0; color:var(--muted); font-size:11px; line-height:1.8; }
-  .paused-note { display:none; color:var(--muted); font-size:12px; margin-top:12px; }
-  .clock.paused .paused-note { display:block; }
-  .clock.paused .count { color:var(--muted); }
-  .side { padding:30px 28px; display:flex; flex-direction:column; }
-  .section-label { color:var(--muted); font-size:13px; }
-  .credit { margin:22px 0 18px; font-size:52px; letter-spacing:-2px; font-weight:450; line-height:1; }
-  .credit small { font-size:13px; letter-spacing:0; font-weight:400; color:var(--muted); margin-left:7px; }
-  .muted { color:var(--muted); font-size:12px; line-height:1.9; }
-  .credit-meta { margin-bottom:30px; }
-  .switchline { border-top:1px solid var(--line); padding-top:27px; margin-top:auto; display:flex; justify-content:space-between; align-items:center; gap:18px; }
-  #toggleLabel { font-size:14px; font-weight:550; }
-  #toggleHint { margin-top:7px; max-width:210px; }
-  button { font-family:inherit; border:1px solid transparent; border-radius:10px; padding:10px 14px; background:var(--accent); color:#fff; font-size:12px; font-weight:550; cursor:pointer; max-width:100%; }
-  button.secondary { background:var(--soft); color:var(--ink); }
-  button.text-button { background:transparent; color:var(--muted); padding:6px 0; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue","PingFang SC",sans-serif; -webkit-font-smoothing:antialiased; }
+  main { max-width:688px; margin:68px auto 40px; padding:0 24px; }
+  header { display:flex; justify-content:space-between; align-items:center; gap:16px; margin:0 2px 22px; }
+  h1 { margin:0; font-size:21px; font-weight:600; letter-spacing:-.02em; }
+  .status { font-size:12px; color:var(--muted); line-height:1.6; text-align:right; }
+  .panel { background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:0 28px; }
+  .clock { padding:28px 0 20px; }
+  .label { font-size:14px; font-weight:500; }
+  #reset { font-size:14px; margin-top:9px; color:var(--muted); line-height:1.7; }
+  .count { font-size:60px; font-weight:400; font-variant-numeric:tabular-nums; letter-spacing:-.03em; line-height:1.15; margin:23px 0 21px; }
+  .clock-footer { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  #freshness { margin:0; font-size:12px; line-height:1.6; color:var(--muted); }
+  .settings-row { border-top:1px solid var(--line); padding:21px 0; }
+  .row-title { display:flex; align-items:center; justify-content:space-between; gap:18px; font-size:14px; }
+  .credit { font-size:19px; font-weight:500; font-variant-numeric:tabular-nums; }
+  .credit small { font-size:13px; font-weight:400; margin-left:5px; color:var(--muted); }
+  .muted { font-size:12px; color:var(--muted); line-height:1.8; }
+  .credit-meta { margin-top:8px; }
+  #toggleHint { margin-top:6px; }
+  .switchline { display:flex; align-items:center; justify-content:space-between; gap:24px; }
+  #toggleLabel { font-size:14px; font-weight:500; }
+  .switch { position:relative; border:0; width:44px; height:44px; padding:0; border-radius:8px; background:transparent; flex-shrink:0; }
+  .switch::after { content:""; position:absolute; left:2px; top:9px; width:42px; height:26px; border-radius:20px; background:#b2b2b7; }
+  .switch::before { content:""; position:absolute; z-index:1; left:5px; top:12px; width:20px; height:20px; background:#fff; border-radius:50%; transition:transform 180ms ease-out; }
+  .switch[aria-checked="true"]::after { background:var(--green); }
+  .switch[aria-checked="true"]::before { transform:translateX(16px); }
+  button { font-family:inherit; font-size:13px; font-weight:400; cursor:pointer; border:0; border-radius:7px; padding:8px 11px; color:var(--blue); background:var(--control); max-width:100%; }
+  button.text-button { padding:4px 0; background:transparent; }
+  button:hover:not(:disabled) { filter:brightness(.95); }
+  button:active:not(:disabled) { filter:brightness(.88); }
   button:disabled { opacity:.45; cursor:default; }
-  button:focus-visible,a:focus-visible,input:focus-visible { outline:3px solid var(--accent); outline-offset:4px; }
-  .switch { padding:4px; border:0; width:42px; height:25px; background:#a5b0bf; border-radius:20px; flex-shrink:0; }
-  .switch::before { content:""; display:block; width:17px; height:17px; background:#fff; border-radius:50%; transition:transform .15s; box-shadow:0 1px 3px #0002; }
-  .switch[aria-checked="true"] { background:var(--accent); }
-  .switch[aria-checked="true"]::before { transform:translateX(17px); }
-  .controls { margin-top:22px; display:flex; justify-content:space-between; gap:20px; align-items:center; }
-  .buttons { display:flex; gap:10px; flex-wrap:wrap; }
-  #soundHint { margin:0; max-width:430px; font-size:11px; }
-  #feedback { min-height:24px; color:var(--green); font-size:12px; line-height:1.8; margin:16px 0 0; }
-  #demoNotice,#error { margin-bottom:20px; padding:13px 16px; border:1px solid var(--line); border-radius:12px; font-size:13px; line-height:1.8; }
-  #demoNotice { color:var(--accent); background:var(--soft); }
-  #error { display:none; color:#a0442e; background:#fff1ed; }
-  dialog { width:min(620px,calc(100% - 32px)); padding:28px; border:1px solid var(--line); border-radius:20px; background:var(--surface); color:var(--ink); box-shadow:0 24px 100px #10203930; }
-  dialog::backdrop { background:#13203955; backdrop-filter:blur(4px); }
-  .dialog-header { display:flex; justify-content:space-between; align-items:center; gap:15px; margin-bottom:15px; }
-  .dialog-header h2 { font-size:18px; margin:0; }
+  button:focus-visible,a:focus-visible,input:focus-visible { outline:3px solid var(--blue); outline-offset:4px; }
+  input { caret-color:var(--blue); }
+  ::selection { background:#007aff30; }
+  .controls { display:flex; justify-content:space-between; align-items:center; gap:20px; padding:16px 2px 0; }
+  #soundHint { margin:12px 2px 0; font-size:11px; }
+  #feedback { min-height:22px; margin:12px 2px 0; color:var(--muted); font-size:12px; line-height:1.8; }
+  #demoNotice,#error { font-size:13px; line-height:1.7; border-radius:9px; padding:12px 14px; margin-bottom:16px; }
+  #demoNotice { background:var(--control); color:var(--ink); border:1px solid var(--line); }
+  #error { display:none; color:var(--error); background:var(--error-bg); }
+  dialog { width:min(570px,calc(100% - 32px)); padding:24px; background:var(--surface); color:var(--ink); border:1px solid var(--line); border-radius:16px; }
+  dialog::backdrop { background:#0005; }
+  .dialog-header { display:flex; justify-content:space-between; align-items:center; gap:20px; margin-bottom:16px; }
+  .dialog-header h2 { margin:0; font-size:18px; font-weight:600; }
   .connection-field { margin-top:16px; }
-  .connection-field label { display:block; font-size:12px; color:var(--muted); margin-bottom:7px; }
+  .connection-field label { display:block; margin-bottom:7px; font-size:12px; color:var(--muted); }
   .connection-value { display:flex; gap:8px; }
-  .connection-value input { width:100%; min-width:0; border:1px solid var(--line); border-radius:9px; padding:10px; background:var(--bg); color:var(--ink); font-size:12px; }
+  .connection-value input { min-width:0; width:100%; font-size:12px; padding:9px; background:var(--bg); color:var(--ink); border:1px solid var(--line); border-radius:7px; }
   .connection-value button { flex-shrink:0; }
   p,#reset,#feedback,#error,.status,.connection-field label { overflow-wrap:anywhere; }
   [hidden] { display:none!important; }
-  @media(prefers-color-scheme:dark) { :root { --bg:#101722; --surface:#182230; --ink:#e6edf7; --muted:#a5b3c7; --line:#2b384b; --accent:#a3aaff; --green:#6ad3be; --soft:#263249; --shadow:0 10px 35px #00000012; } button:not(.secondary):not(.text-button):not(.switch) { color:#17213a; } #error { background:#3d2a28; color:#ffbda8; } .switch[aria-checked="true"] { background:#727edc; } }
-  @media(max-width:760px) { main { padding:30px 22px; } header { margin-bottom:28px; } .layout { grid-template-columns:1fr; } .clock { padding:30px; } .count { margin-top:55px; font-size:64px; } .side { padding:27px; } .credit { font-size:44px; } .credit-meta { margin-bottom:22px; } .controls { align-items:flex-start; flex-direction:column; gap:14px; } .header-actions { gap:12px; } }
-  @media(max-width:400px) { main { padding:24px 16px; } header { gap:12px; flex-wrap:wrap; } .clock { padding:25px 22px; } .clock-art { width:74px; height:74px; right:19px; } .count { font-size:47px; letter-spacing:-2px; margin-top:55px; } .label { font-size:15px; } .connection-value { flex-wrap:wrap; } .connection-value input { flex-basis:100%; } }
+  @media(prefers-color-scheme:dark) { :root { --bg:#141414; --surface:#1c1c1e; --ink:#f5f5f7; --muted:#adadb3; --line:#38383b; --blue:#64b5ff; --green:#30a14e; --control:#2c2c2e; --error:#ffb4ab; --error-bg:#3a2424; } button:hover:not(:disabled) { filter:brightness(1.12); } }
+  @media(max-width:600px) { body { background:var(--surface); } main { margin:32px auto 24px; padding:0 22px; } header { margin-bottom:14px; } .panel { padding:0; border:0; border-radius:0; } .clock { padding-top:24px; } .count { font-size:56px; } }
+  @media(max-width:360px) { main { padding:0 18px; } h1 { font-size:19px; } header { gap:10px; } .count { font-size:48px; } .connection-value { flex-wrap:wrap; } .connection-value input { flex-basis:100%; } }
   @media(prefers-reduced-motion:reduce) { *,*::before,*::after { transition:none!important; animation:none!important; } }
 </style>
 </head>
 <body>
 <main>
-<header>
-  <div class="identity">
-    <span class="brand-mark" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg></span>
-    <div><h1>Codex 额度闹钟</h1><div class="brand-sub">RESET ALARM</div></div>
-  </div>
-  <div class="header-actions"><span class="status" id="status">正在连接</span><span id="connectionTools" hidden><button class="text-button" id="connection">连接设置</button></span></div>
-</header>
+<header><h1>Codex 额度闹钟</h1><span class="status" id="status">正在连接</span></header>
 <div id="demoNotice" role="note" hidden>离线演示 · 模拟数据，不连接 Codex，不创建闹钟</div>
 <div id="error" role="alert"></div>
-<div class="layout">
+<div class="panel">
   <section class="clock">
-    <svg class="clock-art" viewBox="0 0 100 100" fill="none" aria-hidden="true"><circle cx="50" cy="50" r="41" stroke="currentColor" stroke-width="1"/><circle cx="50" cy="50" r="34" stroke="currentColor" stroke-width="5" stroke-dasharray="1 16.8"/><path d="M50 26v24l17 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="50" cy="50" r="2.5" fill="currentColor"/></svg>
-    <div class="eyebrow">NEXT RESET</div>
-    <div class="label">距离下一次额度刷新</div>
-    <div class="count" id="count">--:--:--</div>
+    <div class="label">下一次额度刷新</div>
     <div id="reset">等待读取刷新时间</div>
-    <div class="paused-note">提醒已暂停 · 倒计时继续更新</div>
-    <div class="clock-footer"><p id="freshness">最近读取：尚未获取数据</p><button class="text-button" id="refresh">刷新状态 ↻</button></div>
+    <div class="count" id="count">--:--:--</div>
+    <div class="clock-footer"><p id="freshness">最近读取：尚未获取数据</p><button class="text-button" id="refresh">刷新</button></div>
   </section>
-  <section class="side">
-    <div class="section-label">赠送重置次数</div>
-    <div class="credit"><span id="credits">—</span><small>次可用</small></div>
+  <section class="settings-row">
+    <div class="row-title"><span>赠送重置次数</span><span class="credit"><span id="credits">—</span><small>次可用</small></span></div>
     <div class="credit-meta"><div class="muted">下次赠送时间：未知</div><div class="muted" id="expiry">暂无到期详情</div></div>
-    <div class="switchline"><div><div id="toggleLabel">闹钟提醒</div><div class="muted" id="toggleHint">正在读取提醒设置</div></div><button class="switch" id="notifications" role="switch" aria-labelledby="toggleLabel" aria-checked="true" disabled></button></div>
+  </section>
+  <section class="settings-row switchline">
+    <div><div id="toggleLabel">闹钟提醒</div><div class="muted" id="toggleHint">正在读取提醒设置</div></div>
+    <button class="switch" id="notifications" role="switch" aria-labelledby="toggleLabel" aria-checked="true" disabled></button>
   </section>
 </div>
-<div class="controls"><div class="buttons"><button class="secondary" id="test" disabled>试听电脑闹铃</button></div><p id="soundHint" class="muted">到时持续响铃，点击弹窗停止，最多 5 分钟。休眠后唤醒补提醒。</p></div>
+<div class="controls"><button class="text-button" id="test" disabled>试听电脑闹铃</button><span id="connectionTools" hidden><button class="text-button" id="connection">连接设置</button></span></div>
+<p id="soundHint" class="muted">响铃最多 5 分钟，可在弹窗中停止。休眠后唤醒补提醒。</p>
 <div id="feedback" role="status" aria-live="polite"></div>
 </main>
 <dialog id="connectionDialog" aria-labelledby="connectionTitle">
-  <div class="dialog-header"><h2 id="connectionTitle">连接设置</h2><button class="text-button" id="closeConnection" aria-label="关闭连接设置">关闭 ✕</button></div>
+  <div class="dialog-header"><h2 id="connectionTitle">连接设置</h2><button class="text-button" id="closeConnection">关闭</button></div>
   <div id="connectionFeedback" class="muted" role="status" aria-live="polite"></div>
   <div id="connectionValues"></div>
   <p class="muted">专属地址可查看额度并修改提醒开关，请仅在可信 Wi-Fi 使用，勿分享。</p>
@@ -165,7 +150,6 @@
       const credits = data.credits || {};
       token = data.csrf_token || '';
       const enabled = data.notifications_enabled !== false;
-      document.querySelector('.clock').classList.toggle('paused', !enabled);
       $('notifications').setAttribute('aria-checked', String(enabled));
       $('notifications').disabled = saving || !token;
       $('demoNotice').hidden = !data.demo_mode;
