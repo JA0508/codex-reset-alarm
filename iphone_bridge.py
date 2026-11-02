@@ -52,6 +52,36 @@ def alarm_payload(reset):
             'timestamp': rounded, 'label': 'Codex 额度重置'}
 
 
+def phone_alarm_payload():
+    if not preferences.enabled():
+        return 200, {'enabled': False, 'date': None, 'label': 'Codex 额度重置'}
+    now = time.time()
+    try:
+        state = alarm.read_state(alarm.DEFAULT_STATE)
+    except (OSError, ValueError):
+        state = {}
+    reset, checked = state.get('reset'), state.get('last_check')
+    if (alarm.valid_reset(reset) and reset > now and alarm.valid_reset(checked)
+            and -5 <= now - checked <= 120):
+        try:
+            return 200, {**alarm_payload(reset), 'enabled': True,
+                         'source': 'monitor', 'checked_at': checked}
+        except (ValueError, OSError, OverflowError):
+            pass
+    try:
+        limits = alarm.validate_limits(alarm.fetch_limits(alarm.default_codex(), timeout=2))
+        reset = alarm.five_hour_reset(limits)
+    except (OSError, RuntimeError, ValueError, KeyError, subprocess.SubprocessError):
+        return 503, {'error': '暂时无法读取最新重置时间，请稍后重试'}
+    if not alarm.valid_reset(reset):
+        return 503, {'error': '暂时没有可用的重置时间，请稍后重试'}
+    try:
+        return 200, {**alarm_payload(reset), 'enabled': True,
+                     'source': 'live', 'checked_at': time.time()}
+    except (ValueError, OSError, OverflowError):
+        return 409, {'error': '重置时间无效或已过期，请稍后刷新'}
+
+
 def local_ip():
     for interface in ('en0', 'en1'):
         result = subprocess.run(['/usr/sbin/ipconfig', 'getifaddr', interface],
@@ -123,25 +153,8 @@ def handler_for(token):
                 document = dashboard.ROOT / ('web/index.html' if self.path == prefix else 'web/iphone-setup.html')
                 return self.reply(200, document.read_bytes(),
                                   'text/html; charset=utf-8')
-            if not preferences.enabled():
-                return self.reply(200, {'enabled': False, 'date': None, 'label': 'Codex 额度重置'})
-            reset = None
-            try:
-                reset = alarm.five_hour_reset(alarm.fetch_limits(alarm.default_codex()))
-            except (OSError, RuntimeError, ValueError, KeyError):
-                pass
-            if reset is None:
-                try:
-                    reset = alarm.read_state(alarm.DEFAULT_STATE).get('reset')
-                except OSError:
-                    pass
-            if reset is None:
-                return self.reply(503, {'error': '暂时无法读取重置时间'})
-            try:
-                payload = {**alarm_payload(reset), 'enabled': True}
-            except ValueError:
-                return self.reply(409, {'error': '重置时间已过期，请稍后刷新'})
-            return self.reply(200, payload)
+            code, payload = phone_alarm_payload()
+            return self.reply(code, payload)
         def do_POST(self):
             host = self.headers.get('Host', '')
             if (host.lower() not in hosts or self.headers.get('Origin') != 'http://' + host

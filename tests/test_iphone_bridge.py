@@ -59,3 +59,37 @@ class AddressFallbackTests(unittest.TestCase):
             self.assertIsNone(bridge.stable_address())
         with patch('iphone_bridge.subprocess.run', side_effect=OSError), patch('iphone_bridge.local_ip', return_value='192.168.1.9'):
             self.assertEqual(bridge.stable_address(), '192.168.1.9')
+
+class FastAlarmTests(unittest.TestCase):
+    def test_fresh_monitor_avoids_rpc(self):
+        with patch('iphone_bridge.preferences.enabled', return_value=True), patch('iphone_bridge.time.time', return_value=1000), patch('iphone_bridge.alarm.read_state', return_value={'reset':2000,'last_check':950}), patch('iphone_bridge.alarm.fetch_limits') as fetch:
+            code, payload = bridge.phone_alarm_payload()
+            self.assertEqual(code, 200)
+            self.assertEqual(payload['source'], 'monitor')
+            fetch.assert_not_called()
+    def test_stale_or_future_check_uses_bounded_live_request(self):
+        for checked in (800, 1010):
+            with patch('iphone_bridge.preferences.enabled', return_value=True), patch('iphone_bridge.time.time', return_value=1000), patch('iphone_bridge.alarm.read_state', return_value={'reset':2000,'last_check':checked}), patch('iphone_bridge.alarm.fetch_limits', side_effect=RuntimeError('private')) as fetch:
+                code, payload = bridge.phone_alarm_payload()
+                self.assertEqual(code, 503)
+                self.assertNotIn('private', str(payload))
+                self.assertEqual(fetch.call_args.kwargs['timeout'], 2)
+    def test_paused_never_calls_rpc(self):
+        with patch('iphone_bridge.preferences.enabled', return_value=False), patch('iphone_bridge.alarm.fetch_limits') as fetch:
+            code, payload = bridge.phone_alarm_payload()
+            self.assertEqual(code, 200)
+            self.assertFalse(payload['enabled'])
+            fetch.assert_not_called()
+    def test_expired_cache_refreshes_and_live_expired_is_409(self):
+        limits = {'rateLimits': {'primary': {'windowDurationMins': 300, 'resetsAt': 900}}}
+        with patch('iphone_bridge.preferences.enabled', return_value=True), patch('iphone_bridge.time.time', return_value=1000), patch('iphone_bridge.alarm.read_state', return_value={'reset':900,'last_check':990}), patch('iphone_bridge.alarm.fetch_limits', return_value=limits) as fetch:
+            self.assertEqual(bridge.phone_alarm_payload()[0], 409)
+            self.assertEqual(fetch.call_args.kwargs['timeout'], 2)
+    def test_live_future_is_compatible(self):
+        limits = {'rateLimits': {'primary': {'windowDurationMins': 300, 'resetsAt': 2000}}}
+        with patch('iphone_bridge.preferences.enabled', return_value=True), patch('iphone_bridge.time.time', return_value=1000), patch('iphone_bridge.alarm.read_state', return_value={}), patch('iphone_bridge.alarm.fetch_limits', return_value=limits):
+            code, payload = bridge.phone_alarm_payload()
+            self.assertEqual(code, 200)
+            self.assertTrue(payload['enabled'])
+            self.assertEqual(payload['source'], 'live')
+            self.assertIsInstance(payload['date'], str)
