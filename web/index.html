@@ -1,315 +1,116 @@
 <!doctype html>
 <html lang="zh-CN">
+<head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Codex 额度闹钟</title>
-<link rel="icon" href="data:,"><style>
-    :root {
-      color-scheme:light dark;
-      --ink:#17324b;
-      --muted:#536c7f;
-      --page:#edf2f7;
-      --surface:#fff;
-      --border:#d8e3eb;
-      --secondary:#dfe9f0;
-      --clock:#17324b;
-      --clock-text:#fff;
-      --clock-muted:#bdccda;
-      --danger-bg:#fff0ed;
-      --danger-ink:#9c412c;
-      --focus:#087f72;
-      --green:#087f72
-    }
-    * {
-      box-sizing:border-box
-    }
-    body {
-      margin:0;
-      background:var(--page);
-      color:var(--ink);
-      font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif
-    }
-    main {
-      max-width:800px;
-      margin:auto;
-      padding:46px 24px
-    }
-    header {
-      display:flex;
-      justify-content:space-between;
-      gap:15px;
-      align-items:center;
-      margin-bottom:26px
-    }
-    h1 {
-      font-size:22px;
-      margin:0
-    }
-    .status {
-      background:var(--surface);
-      border:1px solid var(--border);
-      border-radius:30px;
-      padding:9px 13px;
-      font-size:12px
-    }
-    .status.online {
-      color:var(--green)
-    }
-    .clock {
-      background:var(--clock);
-      color:var(--clock-text);
-      padding:32px;
-      border-radius:24px
-    }
-    .label {
-      font-size:13px;
-      color:var(--clock-muted)
-    }
-    .count {
-      font-family:ui-monospace,"SFMono-Regular",monospace;
-      font-size:clamp(42px,10vw,76px);
-      letter-spacing:-3px;
-      margin:24px 0 15px;
-      font-variant-numeric:tabular-nums
-    }
-    #reset {
-      font-size:15px
-    }
-    .row {
-      display:flex;
-      justify-content:space-between;
-      gap:20px;
-      margin:20px 0;
-      padding:24px;
-      background:var(--surface);
-      border:1px solid var(--border);
-      border-radius:20px
-    }
-    .credit {
-      font-size:35px;
-      font-weight:600;
-      white-space:nowrap
-    }
-    .muted {
-      font-size:13px;
-      color:var(--muted);
-      line-height:1.8
-    }
-    .switchline {
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:18px;
-      margin:20px 0
-    }
-    .switch {
-      padding:5px;
-      width:48px;
-      height:28px;
-      border-radius:20px;
-      background:#a6b4bf;
-      flex-shrink:0
-    }
-    .switch:before {
-      content:"";
-      display:block;
-      width:18px;
-      height:18px;
-      background:var(--surface);
-      border-radius:50%;
-      transition:transform .15s
-    }
-    .switch[aria-checked="true"] {
-      background:var(--green)
-    }
-    .switch[aria-checked="true"]:before {
-      transform:translateX(20px)
-    }
-    .buttons {
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap
-    }
-    button {
-      border:0;
-      border-radius:12px;
-      padding:13px 18px;
-      background:var(--green);
-      color:#fff;
-      font-size:14px;
-      font-weight:600;
-      cursor:pointer
-    }
-    button.secondary {
-      background:var(--secondary);
-      color:var(--ink)
-    }
-    button:disabled {
-      opacity:.5;
-      cursor:default
-    }
-    button:focus-visible,summary:focus-visible,a:focus-visible,input:focus-visible {
-      outline:3px solid var(--focus);
-      outline-offset:3px
-    }
-    #error {
-      display:none;
-      padding:15px;
-      background:var(--danger-bg);
-      color:var(--danger-ink);
-      border-radius:12px;
-      font-size:13px;
-      line-height:1.7;
-      margin-bottom:20px
-    }
-    #feedback {
-      font-size:13px;
-      line-height:1.8;
-      min-height:24px;
-      margin:12px 0;
-      color:var(--green)
-    }
-    .connection-field { margin-top: 14px; }
-    .connection-field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
-    .connection-value { display: flex; gap: 8px; }
-    .connection-value input { min-width: 0; width: 100%; border: 1px solid var(--border); border-radius: 9px; padding: 10px; color: var(--ink); background: #fff; font-size: 12px; }
-    .connection-value button { padding: 9px 12px; flex-shrink: 0; }
-    details {
-      margin-top:22px;
-      border-top:1px solid var(--border);
-      padding-top:18px
-    }
-    summary {
-      font-size:14px;
-      cursor:pointer
-    }
-    details p,li {
-      font-size:13px;
-      color:var(--muted);
-      line-height:1.8
-    }
-    ol {
-      padding-left:21px
-    }
-    @media(max-width:500px) {
-      main {
-      padding:26px 18px
-    }
-    .clock {
-      padding:25px
-    }
-    .row {
-      padding:20px
-    }
-    header {
-      align-items:flex-start
-    }
-    .status {
-      max-width:155px
-    }
-    h1 {
-      font-size:20px
-    }
-
-    }
-    a { color: var(--green); text-underline-offset: 3px; }
-    main, section, .row > div, .switchline > div, .connection-value { min-width: 0; }
-    p, #reset, #feedback, #error, .status, .connection-field label { overflow-wrap: anywhere; }
-    button { max-width: 100%; white-space: normal; }
-    .switch { max-width: none; }
-    .clock.paused { box-shadow: inset 0 0 0 2px #8ea4b5; }
-    .clock.paused .count { color: var(--clock-muted); }
-    .paused-note { display: none; margin-top: 12px; font-size: 13px; color: var(--clock-muted); }
-    .clock.paused .paused-note { display: block; }
-    #demoNotice { margin: -8px 0 20px; padding: 12px 15px; border: 1px solid var(--border); border-radius: 12px; color: var(--green); font-size: 13px; line-height: 1.7; }
-    #freshness { margin: 10px 0 0; font-size: 12px; color: var(--muted); line-height: 1.6; }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --ink: #e0eaf3;
-        --muted: #adbfce;
-        --green: #6ddac6;
-        --page: #111d29;
-        --surface: #1b2b3a;
-        --border: #415466;
-        --secondary: #304557;
-        --clock: #213c52;
-        --clock-text: #f0f7fd;
-        --clock-muted: #bfd1df;
-        --danger-bg: #422d2b;
-        --danger-ink: #ffd0bd;
-        --focus: #81e1d0;
-      }
-      button:not(.secondary):not(.switch) { color: #102c28; }
-      .switch::before { background: #fff; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after { transition: none !important; animation: none !important; }
-    }
-    @media (max-width: 350px) {
-      header { flex-wrap: wrap; gap: 10px; }
-      .clock { padding: 20px; }
-      .count { font-size: 38px; letter-spacing: -2px; }
-      .row { gap: 12px; padding: 18px; }
-      .credit { font-size: 30px; }
-      .connection-value { flex-wrap: wrap; }
-      .connection-value input { flex-basis: 100%; }
-    }
+<link rel="icon" href="data:,">
+<style>
+  :root { color-scheme:light dark; --bg:#f6f8fb; --surface:#fff; --ink:#17243b; --muted:#65748a; --line:#e5eaf1; --accent:#4b56d6; --green:#087f72; --soft:#f0f2fb; --shadow:0 8px 32px #263b5b06; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif; -webkit-font-smoothing:antialiased; }
+  main { max-width:1120px; margin:0 auto; padding:62px 36px 40px; }
+  header { display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:48px; }
+  .identity { display:flex; align-items:center; gap:13px; }
+  .brand-mark { width:36px; height:36px; border:1px solid var(--line); border-radius:12px; background:var(--surface); display:grid; place-items:center; color:var(--accent); }
+  h1 { font-size:19px; font-weight:650; letter-spacing:-.4px; margin:0; }
+  .brand-sub { color:var(--muted); font-size:11px; letter-spacing:1.5px; margin-top:4px; }
+  .header-actions { display:flex; align-items:center; gap:16px; }
+  .status { display:flex; align-items:center; gap:7px; color:var(--muted); font-size:12px; }
+  .status::before { content:""; width:6px; height:6px; border-radius:50%; background:#9ba8ba; }
+  .status.online::before { background:var(--green); box-shadow:0 0 0 4px #0a99800c; }
+  .layout { display:grid; grid-template-columns:minmax(0,1.75fr) minmax(270px,1fr); gap:22px; align-items:stretch; }
+  .clock,.side { min-width:0; background:var(--surface); border:1px solid var(--line); border-radius:24px; box-shadow:var(--shadow); }
+  .clock { position:relative; padding:40px 36px 32px; overflow:hidden; display:flex; flex-direction:column; }
+  .eyebrow { color:var(--muted); font-size:11px; letter-spacing:1.6px; font-weight:600; }
+  .label { font-size:17px; font-weight:550; margin-top:10px; }
+  .clock-art { position:absolute; right:24px; top:25px; width:92px; height:92px; color:var(--accent); opacity:.28; }
+  .count { font-family:ui-monospace,"SFMono-Regular",Menlo,monospace; font-size:clamp(40px,5.8vw,72px); line-height:1.2; font-weight:400; letter-spacing:-3px; font-variant-numeric:tabular-nums; margin:64px 0 22px; }
+  #reset { font-size:13px; color:var(--muted); line-height:1.6; }
+  .clock-footer { border-top:1px solid var(--line); margin-top:33px; padding-top:20px; display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; align-items:center; }
+  #freshness { margin:0; color:var(--muted); font-size:11px; line-height:1.8; }
+  .paused-note { display:none; color:var(--muted); font-size:12px; margin-top:12px; }
+  .clock.paused .paused-note { display:block; }
+  .clock.paused .count { color:var(--muted); }
+  .side { padding:30px 28px; display:flex; flex-direction:column; }
+  .section-label { color:var(--muted); font-size:13px; }
+  .credit { margin:22px 0 18px; font-size:52px; letter-spacing:-2px; font-weight:450; line-height:1; }
+  .credit small { font-size:13px; letter-spacing:0; font-weight:400; color:var(--muted); margin-left:7px; }
+  .muted { color:var(--muted); font-size:12px; line-height:1.9; }
+  .credit-meta { margin-bottom:30px; }
+  .switchline { border-top:1px solid var(--line); padding-top:27px; margin-top:auto; display:flex; justify-content:space-between; align-items:center; gap:18px; }
+  #toggleLabel { font-size:14px; font-weight:550; }
+  #toggleHint { margin-top:7px; max-width:210px; }
+  button { font-family:inherit; border:1px solid transparent; border-radius:10px; padding:10px 14px; background:var(--accent); color:#fff; font-size:12px; font-weight:550; cursor:pointer; max-width:100%; }
+  button.secondary { background:var(--soft); color:var(--ink); }
+  button.text-button { background:transparent; color:var(--muted); padding:6px 0; }
+  button:disabled { opacity:.45; cursor:default; }
+  button:focus-visible,a:focus-visible,input:focus-visible { outline:3px solid var(--accent); outline-offset:4px; }
+  .switch { padding:4px; border:0; width:42px; height:25px; background:#a5b0bf; border-radius:20px; flex-shrink:0; }
+  .switch::before { content:""; display:block; width:17px; height:17px; background:#fff; border-radius:50%; transition:transform .15s; box-shadow:0 1px 3px #0002; }
+  .switch[aria-checked="true"] { background:var(--accent); }
+  .switch[aria-checked="true"]::before { transform:translateX(17px); }
+  .controls { margin-top:22px; display:flex; justify-content:space-between; gap:20px; align-items:center; }
+  .buttons { display:flex; gap:10px; flex-wrap:wrap; }
+  #soundHint { margin:0; max-width:430px; font-size:11px; }
+  #feedback { min-height:24px; color:var(--green); font-size:12px; line-height:1.8; margin:16px 0 0; }
+  #demoNotice,#error { margin-bottom:20px; padding:13px 16px; border:1px solid var(--line); border-radius:12px; font-size:13px; line-height:1.8; }
+  #demoNotice { color:var(--accent); background:var(--soft); }
+  #error { display:none; color:#a0442e; background:#fff1ed; }
+  dialog { width:min(620px,calc(100% - 32px)); padding:28px; border:1px solid var(--line); border-radius:20px; background:var(--surface); color:var(--ink); box-shadow:0 24px 100px #10203930; }
+  dialog::backdrop { background:#13203955; backdrop-filter:blur(4px); }
+  .dialog-header { display:flex; justify-content:space-between; align-items:center; gap:15px; margin-bottom:15px; }
+  .dialog-header h2 { font-size:18px; margin:0; }
+  .connection-field { margin-top:16px; }
+  .connection-field label { display:block; font-size:12px; color:var(--muted); margin-bottom:7px; }
+  .connection-value { display:flex; gap:8px; }
+  .connection-value input { width:100%; min-width:0; border:1px solid var(--line); border-radius:9px; padding:10px; background:var(--bg); color:var(--ink); font-size:12px; }
+  .connection-value button { flex-shrink:0; }
+  p,#reset,#feedback,#error,.status,.connection-field label { overflow-wrap:anywhere; }
+  [hidden] { display:none!important; }
+  @media(prefers-color-scheme:dark) { :root { --bg:#101722; --surface:#182230; --ink:#e6edf7; --muted:#a5b3c7; --line:#2b384b; --accent:#a3aaff; --green:#6ad3be; --soft:#263249; --shadow:0 10px 35px #00000012; } button:not(.secondary):not(.text-button):not(.switch) { color:#17213a; } #error { background:#3d2a28; color:#ffbda8; } .switch[aria-checked="true"] { background:#727edc; } }
+  @media(max-width:760px) { main { padding:30px 22px; } header { margin-bottom:28px; } .layout { grid-template-columns:1fr; } .clock { padding:30px; } .count { margin-top:55px; font-size:64px; } .side { padding:27px; } .credit { font-size:44px; } .credit-meta { margin-bottom:22px; } .controls { align-items:flex-start; flex-direction:column; gap:14px; } .header-actions { gap:12px; } }
+  @media(max-width:400px) { main { padding:24px 16px; } header { gap:12px; flex-wrap:wrap; } .clock { padding:25px 22px; } .clock-art { width:74px; height:74px; right:19px; } .count { font-size:47px; letter-spacing:-2px; margin-top:55px; } .label { font-size:15px; } .connection-value { flex-wrap:wrap; } .connection-value input { flex-basis:100%; } }
+  @media(prefers-reduced-motion:reduce) { *,*::before,*::after { transition:none!important; animation:none!important; } }
 </style>
+</head>
+<body>
 <main>
 <header>
-<h1>Codex 额度闹钟</h1>
-<span class="status" id="status">正在连接</span>
+  <div class="identity">
+    <span class="brand-mark" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg></span>
+    <div><h1>Codex 额度闹钟</h1><div class="brand-sub">RESET ALARM</div></div>
+  </div>
+  <div class="header-actions"><span class="status" id="status">正在连接</span><span id="connectionTools" hidden><button class="text-button" id="connection">连接设置</button></span></div>
 </header>
 <div id="demoNotice" role="note" hidden>离线演示 · 模拟数据，不连接 Codex，不创建闹钟</div>
-<div id="error" role="alert">
+<div id="error" role="alert"></div>
+<div class="layout">
+  <section class="clock">
+    <svg class="clock-art" viewBox="0 0 100 100" fill="none" aria-hidden="true"><circle cx="50" cy="50" r="41" stroke="currentColor" stroke-width="1"/><circle cx="50" cy="50" r="34" stroke="currentColor" stroke-width="5" stroke-dasharray="1 16.8"/><path d="M50 26v24l17 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="50" cy="50" r="2.5" fill="currentColor"/></svg>
+    <div class="eyebrow">NEXT RESET</div>
+    <div class="label">距离下一次额度刷新</div>
+    <div class="count" id="count">--:--:--</div>
+    <div id="reset">等待读取刷新时间</div>
+    <div class="paused-note">提醒已暂停 · 倒计时继续更新</div>
+    <div class="clock-footer"><p id="freshness">最近读取：尚未获取数据</p><button class="text-button" id="refresh">刷新状态 ↻</button></div>
+  </section>
+  <section class="side">
+    <div class="section-label">赠送重置次数</div>
+    <div class="credit"><span id="credits">—</span><small>次可用</small></div>
+    <div class="credit-meta"><div class="muted">下次赠送时间：未知</div><div class="muted" id="expiry">暂无到期详情</div></div>
+    <div class="switchline"><div><div id="toggleLabel">闹钟提醒</div><div class="muted" id="toggleHint">正在读取提醒设置</div></div><button class="switch" id="notifications" role="switch" aria-labelledby="toggleLabel" aria-checked="true" disabled></button></div>
+  </section>
 </div>
-<section class="clock">
-<div class="label">距离下一次五小时额度刷新</div>
-<div class="count" id="count">--:--:--</div>
-<div id="reset">等待读取刷新时间</div>
-<div class="paused-note">提醒已暂停 · 倒计时继续更新</div>
-</section>
-<p id="freshness">最近读取：尚未获取数据</p>
-<section class="row">
-<div>
-<div>赠送重置次数</div>
-<div class="muted">下次赠送时间：未知</div>
-<div class="muted" id="expiry">暂无到期详情</div>
-</div>
-<div class="credit">
-<span id="credits">—</span> <small style="font-size:14px;font-weight:400">次</small>
-</div>
-</section>
-<section class="switchline">
-<div>
-<label id="toggleLabel">闹钟提醒</label>
-<div class="muted" id="toggleHint">正在读取提醒设置</div>
-</div>
-<button class="switch" id="notifications" role="switch" aria-labelledby="toggleLabel" aria-checked="true" disabled>
-</button>
-</section>
-<div class="buttons">
-<button id="test" disabled>试听电脑闹铃</button>
-<button class="secondary" id="refresh">刷新状态</button>
-</div>
-<div id="feedback" role="status" aria-live="polite">
-</div>
-<p id="soundHint" class="muted">电脑会持续响铃，点击系统弹窗“停止闹铃”结束，最多 5 分钟。休眠期间会在唤醒后补提醒。</p>
-<details id="phoneSetup">
-<summary>iPhone 系统闹钟 · 待手机配置</summary>
-<p>在电脑点击下方按钮查看并复制手机网页和快捷指令链接，也可打开“启动iPhone同步.command”。手机与电脑连接同一 Wi-Fi，在快捷指令填入链接；运行后到“时钟 → 闹钟”确认启用。</p>
-<div id="connectionTools" hidden>
-<button class="secondary" id="connection">查看手机连接地址</button>
-<div id="connectionFeedback" class="muted" role="status" aria-live="polite"></div>
-<div id="connectionValues"></div>
-<p>专属地址包含访问令牌，持有者可查看额度并修改提醒开关，请勿分享。</p>
-</div>
-<p>
-<a href="iphone-setup" target="_blank">查看首次设置步骤</a>
-</p>
-<p>设置完成后，每次刷新时间变化需重新运行快捷指令。电脑无法确认手机是否已创建闹钟。已创建的iPhone闹钟需运行更新后的快捷指令关闭，网页开关不能远程取消手机已有闹钟。</p>
-</details>
+<div class="controls"><div class="buttons"><button class="secondary" id="test" disabled>试听电脑闹铃</button></div><p id="soundHint" class="muted">到时持续响铃，点击弹窗停止，最多 5 分钟。休眠后唤醒补提醒。</p></div>
+<div id="feedback" role="status" aria-live="polite"></div>
 </main>
+<dialog id="connectionDialog" aria-labelledby="connectionTitle">
+  <div class="dialog-header"><h2 id="connectionTitle">连接设置</h2><button class="text-button" id="closeConnection" aria-label="关闭连接设置">关闭 ✕</button></div>
+  <div id="connectionFeedback" class="muted" role="status" aria-live="polite"></div>
+  <div id="connectionValues"></div>
+  <p class="muted">专属地址可查看额度并修改提醒开关，请仅在可信 Wi-Fi 使用，勿分享。</p>
+</dialog>
 <script>
     const $ = id => document.getElementById(id);
     let data = null;
@@ -343,7 +144,7 @@
       const minutes = Math.floor(Math.max(0, Date.now() / 1000 - fetched) / 60);
       $('freshness').textContent = (data.demo_mode ? '演示数据生成：' : '最近读取：')
         + (minutes < 1 ? '刚刚' : minutes + ' 分钟前')
-        + (data.demo_mode ? ' · 仅模拟展示' : ' · 读取失败时保留上次数据');
+        + (data.demo_mode ? ' · 仅模拟展示' : '');
       $('freshness').title = '实时额度成功读取时间：' + stamp(fetched) + '；不是监测进程的检查时间';
     }
 
@@ -368,8 +169,8 @@
       $('notifications').setAttribute('aria-checked', String(enabled));
       $('notifications').disabled = saving || !token;
       $('demoNotice').hidden = !data.demo_mode;
-      $('phoneSetup').hidden = !!data.demo_mode;
-      $('soundHint').hidden = !!data.demo_mode;
+      $('soundHint').hidden = !!data.demo_mode || !!data.phone_mode;
+      document.querySelector('.controls').hidden = !!data.demo_mode || !!data.phone_mode;
       $('toggleHint').textContent = data.demo_mode
         ? (enabled ? '演示提醒已开启 · 仅修改内存中的模拟设置' : '演示提醒已暂停 · 模拟倒计时继续')
         : (enabled ? '到刷新时间时响铃提醒' : '提醒已暂停，额度继续更新');
@@ -487,6 +288,7 @@
 
     $('connection').onclick = async () => {
       if (data?.demo_mode || data?.phone_mode) return;
+      $('connectionDialog').showModal();
       $('connection').disabled = true;
       $('connectionFeedback').textContent = '正在检查手机桥接服务…';
       $('connectionValues').replaceChildren();
@@ -509,6 +311,14 @@
         $('connection').disabled = false;
       }
     };
+
+    $('closeConnection').onclick = () => $('connectionDialog').close();
+    $('connectionDialog').addEventListener('click', event => {
+      if (event.target === $('connectionDialog')) {
+        const bounds = $('connectionDialog').getBoundingClientRect();
+        if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) $('connectionDialog').close();
+      }
+    });
 
     $('refresh').onclick = load;
     $('test').onclick = async () => {
@@ -547,4 +357,5 @@
     updatePolling();
     setInterval(tick, 1000);
 </script>
+</body>
 </html>
