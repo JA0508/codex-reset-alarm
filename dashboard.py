@@ -11,6 +11,8 @@ import secrets
 import threading
 import time
 import alarm
+import reset_credits
+import quota_insights
 
 ROOT = Path(__file__).resolve().parent
 TOKEN = secrets.token_urlsafe(32)
@@ -47,10 +49,14 @@ def snapshot():
                 CACHE['error'] = str(error)
             CACHE['checked'] = time.monotonic()
         limits, error, fetched_at = CACHE['limits'], CACHE['error'], CACHE.get('fetched_at')
+    detail = reset_credits.snapshot()
     state = alarm.read_state(alarm.DEFAULT_STATE)
-    return {'fetched_at': fetched_at, 'notifications_enabled': preferences.enabled(), 'running': alarm.monitor_running(),
+    credits = detail['credits'] if detail['credits'] is not None else redact(limits.get('rateLimitResetCredits') or state.get('reset_credits', {}))
+    return {'insights': quota_insights.summarize(limits, credits, time.time()), 'fetched_at': fetched_at, 'notifications_enabled': preferences.enabled(), 'running': alarm.monitor_running(),
+            'weekly_reset': alarm.weekly_reset(limits),
             'reset': alarm.five_hour_reset(limits) or state.get('reset'),
-            'credits': redact(limits.get('rateLimitResetCredits') or state.get('reset_credits', {})),
+            'credits': detail['credits'] if detail['credits'] is not None else redact(limits.get('rateLimitResetCredits') or state.get('reset_credits', {})),
+            'credit_details_checked': detail['fetched_at'], 'credit_details_error': detail['error'],
             'last_check': state.get('last_check'), 'last_alarm': state.get('last_alarm'),
             'error': error or state.get('last_error', ''), 'csrf_token': TOKEN,
             'test_alarm_active': ALARM_LOCK.locked(), 'state': redact(state),

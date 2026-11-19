@@ -66,6 +66,14 @@ def validate_limits(data):
 
 
 def five_hour_reset(data):
+    return window_reset(data, 300)
+
+
+def weekly_reset(data):
+    return window_reset(data, 10080)
+
+
+def window_reset(data, duration):
     """Prefer the Codex bucket, then the legacy/default usage bucket."""
     validate_limits(data)
     by_id = data.get('rateLimitsByLimitId') or {}
@@ -77,7 +85,7 @@ def five_hour_reset(data):
         buckets = list(by_id.values())
     resets = [window['resetsAt'] for bucket in buckets if isinstance(bucket, dict)
               for window in bucket.values() if isinstance(window, dict)
-              and window.get('windowDurationMins') == 300
+              and window.get('windowDurationMins') == duration
               and valid_reset(window.get('resetsAt'))]
     return min(resets) if resets else None
 

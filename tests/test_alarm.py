@@ -9,6 +9,11 @@ import alarm
 
 
 class AlarmTests(unittest.TestCase):
+    def test_weekly_window(self):
+        payload = {"rateLimits": {"secondary": {"windowDurationMins": 10080, "resetsAt": 999}}}
+        self.assertEqual(alarm.weekly_reset(payload), 999)
+        self.assertIsNone(alarm.weekly_reset({}))
+
     def test_select_five_hour_window(self):
         data = {'rateLimits': {'primary': {'windowDurationMins': 300, 'resetsAt': 123}, 'secondary': {'windowDurationMins': 10080, 'resetsAt': 999}}}
         self.assertEqual(alarm.five_hour_reset(data), 123)
@@ -103,7 +108,8 @@ class CommandTests(unittest.TestCase):
             self.assertTrue(alarm.alert())
         dialog.terminate.assert_called_once()
 
-    def test_run_saved_due_and_retry(self):
+    @patch("alarm.preferences.enabled", return_value=True)
+    def test_run_saved_due_and_retry(self, _enabled):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'state.json'
             alarm.write_state(path, {'reset': 1})
@@ -130,7 +136,8 @@ class CommandTests(unittest.TestCase):
         data = {'rateLimitsByLimitId': {'other': {'primary': {'windowDurationMins': 300, 'resetsAt': 20}}, 'codex': {'primary': {'windowDurationMins': 300, 'resetsAt': 120}}}, 'rateLimits': {'primary': {'windowDurationMins': 300, 'resetsAt': 30}}}
         self.assertEqual(alarm.five_hour_reset(data), 120)
 
-    def test_due_delivered_and_saved_before_fetch(self):
+    @patch("alarm.preferences.enabled", return_value=True)
+    def test_due_delivered_and_saved_before_fetch(self, _enabled):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'state.json'
             alarm.write_state(path, {'reset': 1})

@@ -6,7 +6,7 @@
 <title>Codex 额度闹钟</title>
 <link rel="icon" href="data:,">
 <style>
-  :root { color-scheme:light dark; --bg:#f5f5f7; --surface:#fff; --ink:#1d1d1f; --muted:#6e6e73; --line:#e5e5e7; --blue:#0066cc; --green:#248a3d; --control:#f0f0f2; --error:#b42318; --error-bg:#fff0ee; }
+  :root { color-scheme:dark; --bg:#000; --surface:#1c1c1e; --ink:#f5f5f7; --muted:#a1a1a6; --line:#343437; --blue:#64b5ff; --green:#30a14e; --control:#2c2c2e; --error:#ffb4ab; --error-bg:#3a2424; }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue","PingFang SC",sans-serif; -webkit-font-smoothing:antialiased; }
   main { max-width:688px; margin:68px auto 40px; padding:0 24px; }
@@ -22,6 +22,11 @@
   #freshness { margin:0; font-size:12px; line-height:1.6; color:var(--muted); }
   .settings-row { border-top:1px solid var(--line); padding:21px 0; }
   .row-title { display:flex; align-items:center; justify-content:space-between; gap:18px; font-size:14px; }
+  #weeklyCount { display:block; margin:10px 0 5px; font-size:24px; font-weight:500; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
+  .quota-window { margin:14px 0; }
+  .quota-window progress { display:block; width:100%; height:5px; margin-top:8px; accent-color:#64b5ff; }
+  #expiryWarning { color:#ffb454; margin-top:10px; }
+  summary { cursor:pointer; margin-top:10px; }
   .credit { font-size:19px; font-weight:500; font-variant-numeric:tabular-nums; }
   .credit small { font-size:13px; font-weight:400; margin-left:5px; color:var(--muted); }
   .muted { font-size:12px; color:var(--muted); line-height:1.8; }
@@ -59,7 +64,7 @@
   .connection-value button { flex-shrink:0; }
   p,#reset,#feedback,#error,.status,.connection-field label { overflow-wrap:anywhere; }
   [hidden] { display:none!important; }
-  @media(prefers-color-scheme:dark) { :root { --bg:#141414; --surface:#1c1c1e; --ink:#f5f5f7; --muted:#adadb3; --line:#38383b; --blue:#64b5ff; --green:#30a14e; --control:#2c2c2e; --error:#ffb4ab; --error-bg:#3a2424; } button:hover:not(:disabled) { filter:brightness(1.12); } }
+
   @media(max-width:600px) { body { background:var(--surface); } main { margin:32px auto 24px; padding:0 22px; } header { margin-bottom:14px; } .panel { padding:0; border:0; border-radius:0; } .clock { padding-top:24px; } .count { font-size:56px; } }
   @media(max-width:360px) { main { padding:0 18px; } h1 { font-size:19px; } header { gap:10px; } .count { font-size:48px; } .connection-value { flex-wrap:wrap; } .connection-value input { flex-basis:100%; } }
   @media(prefers-reduced-motion:reduce) { *,*::before,*::after { transition:none!important; animation:none!important; } }
@@ -72,14 +77,21 @@
 <div id="error" role="alert"></div>
 <div class="panel">
   <section class="clock">
-    <div class="label">下一次额度刷新</div>
+    <p id="availability" class="muted"></p>
+    <div id="quotaWindows"></div>
+    <div class="label">5 小时额度刷新</div>
     <div id="reset">等待读取刷新时间</div>
     <div class="count" id="count">--:--:--</div>
     <div class="clock-footer"><p id="freshness">最近读取：尚未获取数据</p><button class="text-button" id="refresh">刷新</button></div>
   </section>
   <section class="settings-row">
+    <div class="label">每周额度刷新</div>
+    <div id="weeklyCount">—</div>
+    <div class="muted" id="weeklyDate">等待读取每周刷新时间</div>
+  </section>
+  <section class="settings-row">
     <div class="row-title"><span>赠送重置次数</span><span class="credit"><span id="credits">—</span><small>次可用</small></span></div>
-    <div class="credit-meta"><div class="muted">下次赠送时间：未知</div><div class="muted" id="expiry">暂无到期详情</div></div>
+    <div class="credit-meta"><div class="muted" id="creditUpdated">正在读取赠送次数</div><div class="muted">发放时间暂未公布</div><div class="muted" id="expiry" hidden></div><div id="expiryWarning" class="muted" hidden></div><details><summary class="muted">查看重置券明细</summary><div id="creditDetails" class="muted"></div></details></div>
   </section>
   <section class="settings-row switchline">
     <div><div id="toggleLabel">闹钟提醒</div><div class="muted" id="toggleHint">正在读取提醒设置</div></div>
@@ -135,6 +147,10 @@
 
     function tick() {
       updateFreshness();
+      const weekly = data?.weekly_reset;
+      const remaining = weekly ? Math.max(0, Math.ceil(weekly - Date.now() / 1000)) : null;
+      $('weeklyCount').textContent = remaining === null ? '暂无数据' : remaining === 0 ? '已到刷新时间' : '剩余 ' + (remaining >= 86400 ? Math.floor(remaining / 86400) + ' 天 ' : '') + Math.floor(remaining % 86400 / 3600) + ' 小时 ' + Math.floor(remaining % 3600 / 60) + ' 分';
+      $('weeklyDate').textContent = weekly ? '刷新时间 · ' + stamp(weekly) : '账号暂未返回每周刷新时间';
       if (!data?.reset) {
         $('count').textContent = '--:--:--';
         return;
@@ -148,6 +164,29 @@
 
     function renderStatus() {
       const credits = data.credits || {};
+      const insight = data.insights || {};
+      $('availability').textContent = (data.error ? '数据可能已过期 · ' : '') + (insight.message || '');
+      $('expiryWarning').hidden = !insight.expiring_count;
+      $('expiryWarning').textContent = insight.expiring_count ? insight.expiring_count + ' 张重置券将在 72 小时内到期，请及时查看' : '';
+      const quotaWindows = $('quotaWindows');
+      quotaWindows.replaceChildren();
+      for (const window of insight.windows || []) {
+        const row = document.createElement('div');
+        row.className = 'quota-window';
+        const label = document.createElement('div');
+        label.className = 'row-title';
+        label.textContent = (window.kind === 'weekly' ? '每周额度' : '5 小时额度') + ' · ' + (window.remaining_percent === null ? '暂未返回用量' : '剩余 ' + window.remaining_percent + '%');
+        row.append(label);
+        if (window.remaining_percent !== null) {
+          const meter = document.createElement('progress');
+          meter.max = 100;
+          meter.value = window.remaining_percent;
+          meter.setAttribute('aria-label', label.textContent);
+          row.append(meter);
+        }
+        quotaWindows.append(row);
+      }
+
       token = data.csrf_token || '';
       const enabled = data.notifications_enabled !== false;
       $('notifications').setAttribute('aria-checked', String(enabled));
@@ -167,10 +206,22 @@
         ? '刷新时间 · ' + stamp(data.reset)
         : '暂未获得五小时刷新时间';
       $('credits').textContent = credits.availableCount ?? '—';
-      const dates = (credits.credits || []).map(credit => credit.expiresAt).filter(Boolean);
+      $('creditUpdated').textContent = data.credit_details_error || ((data.credit_details_checked || data.fetched_at) ? '最近更新 · ' + stamp(data.credit_details_checked || data.fetched_at) : '尚未成功读取赠送次数');
+      const dates = (credits.credits || []).map(credit => credit.expiresAt).filter(value => typeof value === 'number' && Number.isFinite(value) && value > 0);
+      $('expiry').hidden = dates.length === 0;
       $('expiry').textContent = dates.length
         ? '最近到期 · ' + stamp(Math.min(...dates))
-        : '接口暂未提供到期详情';
+        : '';
+      const details = $('creditDetails');
+      details.replaceChildren();
+      for (const [index, credit] of (credits.credits || []).entries()) {
+        const row = document.createElement('div');
+        row.style.marginTop = '10px';
+        row.textContent = '重置券 ' + (index + 1) + ' · ' + ({available:'可用', expired:'已到期', consumed:'已使用'}[credit.status] || '状态未提供')
+          + (credit.grantedAt ? ' · 发放 ' + stamp(credit.grantedAt) : '')
+          + (credit.expiresAt ? ' · 到期 ' + stamp(credit.expiresAt) : '');
+        details.append(row);
+      }
       $('error').style.display = data.error ? 'block' : 'none';
       $('error').textContent = data.error ? '实时读取失败：' + data.error + '。请稍后刷新。' : '';
       tick();
