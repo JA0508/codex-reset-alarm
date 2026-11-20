@@ -26,6 +26,7 @@
   .quota-window { margin:14px 0; }
   .quota-window progress { display:block; width:100%; height:5px; margin-top:8px; accent-color:#64b5ff; }
   #expiryWarning { color:#ffb454; margin-top:10px; }
+  select { background:var(--control); color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:6px; font:inherit; }
   summary { cursor:pointer; margin-top:10px; }
   .credit { font-size:19px; font-weight:500; font-variant-numeric:tabular-nums; }
   .credit small { font-size:13px; font-weight:400; margin-left:5px; color:var(--muted); }
@@ -93,7 +94,7 @@
     <div class="row-title"><span>赠送重置次数</span><span class="credit"><span id="credits">—</span><small>次可用</small></span></div>
     <div class="credit-meta"><div class="muted" id="creditUpdated">正在读取赠送次数</div><div class="muted">下次赠送时间暂未公布</div><div class="muted" id="expiry" hidden></div><div id="expiryWarning" class="muted" hidden></div><details><summary class="muted">查看重置券明细</summary><div id="creditDetails" class="muted"></div></details></div>
   </section>
-  <section class="settings-row"><details><summary>额度走势与变化记录</summary><p class="muted">近 24 小时本机观察 · 蓝色：5 小时，灰色：每周 · 剩余额度</p><div id="historyChart"></div><div id="historyEvents" class="muted"></div></details></section>
+  <section class="settings-row"><details><summary>额度走势与变化记录</summary><p class="muted">本机观察 · 蓝色：5 小时，灰色：每周 · 剩余额度</p><label class="muted">观察范围 <select id="historyRange"><option value="24">24 小时</option><option value="168">7 天</option></select></label><div class="controls"><button id="exportCsv" disabled>导出 CSV</button><button id="exportJson" disabled>导出 JSON</button></div><p class="muted">只导出当前范围的观察值，不含账号与凭证。</p><div id="historyChart"></div><div id="historyEvents" class="muted"></div></details></section>
   <section class="settings-row"><details><summary>刷新计划与服务状态</summary><div id="schedule" class="muted"></div><div id="serviceHealth" class="muted"></div></details></section>
   <section class="settings-row switchline">
     <div><div id="toggleLabel">闹钟提醒</div><div class="muted" id="toggleHint">正在读取提醒设置</div></div>
@@ -267,14 +268,16 @@
       const chart = $('historyChart');
       const events = $('historyEvents');
       chart.replaceChildren(); events.replaceChildren();
-      const cutoff = Date.now()/1000 - 86400;
+      const cutoff = Date.now()/1000 - Number($('historyRange').value)*3600;
       const samples = (history.samples || []).filter(item => typeof item.at === 'number' && item.at >= cutoff);
+      $('exportCsv').disabled = samples.length === 0;
+      $('exportJson').disabled = samples.length === 0;
       const ns = 'http://www.w3.org/2000/svg';
       if (samples.length >= 2) {
         const svg = document.createElementNS(ns, 'svg');
         svg.setAttribute('viewBox', '0 0 500 140');
         svg.setAttribute('role', 'img');
-        svg.setAttribute('aria-label', '近24小时剩余额度走势，详细观察值见下表');
+        svg.setAttribute('aria-label', '所选范围剩余额度走势，详细观察值见下表');
         svg.style.width = '100%';
         const start = samples[0].at, span = Math.max(1, samples[samples.length-1].at-start);
         for (const [kind, color] of [['five_hour','#64b5ff'],['weekly','#a1a1a6']]) {
@@ -308,10 +311,32 @@
         row.insertCell().textContent=(sample.windows || []).map(w=>(w.kind==='weekly'?'每周':'5小时')+' '+(w.remaining_percent ?? '—')+'%').join(' · ');
       }
       if (samples.length) chart.append(table);
-      for (const event of (history.events || []).slice(-8).reverse()) {
+      for (const event of (history.events || []).filter(event => event.at >= cutoff).slice(-8).reverse()) {
         const line=document.createElement('p'); line.textContent=stamp(event.at)+' · '+(event.kind==='weekly'?'每周额度':'5 小时额度')+' · '+event.message; events.append(line);
       }
     }
+
+    function exportHistory(format) {
+      const cutoff = Date.now()/1000 - Number($('historyRange').value)*3600;
+      const rows = [];
+      for (const sample of data?.history?.samples || []) {
+        if (!Number.isFinite(sample.at) || sample.at < cutoff) continue;
+        for (const window of sample.windows || []) {
+          if (!['five_hour','weekly'].includes(window.kind) || !Number.isFinite(window.remaining_percent) || !Number.isFinite(window.reset)) continue;
+          rows.push({observed_at_utc:new Date(sample.at*1000).toISOString(), window:window.kind, remaining_percent:window.remaining_percent, reset_at_utc:new Date(window.reset*1000).toISOString()});
+        }
+      }
+      if (!rows.length) return;
+      const content = format === 'csv'
+        ? '\ufeffobserved_at_utc,window,remaining_percent,reset_at_utc\r\n' + rows.map(row => Object.values(row).join(',')).join('\r\n')
+        : JSON.stringify({description:'Local observed quota samples; not a billing ledger', timezone:'UTC', hours:Number($('historyRange').value), samples:rows},null,2);
+      const url=URL.createObjectURL(new Blob([content],{type:format==='csv'?'text/csv;charset=utf-8':'application/json'}));
+      const link=document.createElement('a'); link.href=url; link.download='codex-quota-history.'+format;
+      document.body.append(link); link.click(); link.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+    }
+    $('historyRange').addEventListener('change',()=>renderHistory(data?.history || {}));
+    $('exportCsv').addEventListener('click',()=>exportHistory('csv'));
+    $('exportJson').addEventListener('click',()=>exportHistory('json'));
 
     async function load() {
       if (saving || statusController) return;
