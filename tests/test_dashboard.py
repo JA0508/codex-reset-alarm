@@ -15,6 +15,11 @@ class DashboardTests(unittest.TestCase):
         self.assertFalse(dashboard.authorized('http://127.0.0.1:8765', 'bad', 'abc'))
 
 class CacheTests(unittest.TestCase):
+    def setUp(self):
+        details = patch("dashboard.reset_credits.snapshot", return_value={"credits": None, "fetched_at": None, "error": ""})
+        details.start()
+        self.addCleanup(details.stop)
+
     def test_cache_and_error_retains_limits(self):
         from unittest.mock import patch
         original = dict(dashboard.CACHE)
