@@ -21,3 +21,23 @@ class QuotaInsightsTests(unittest.TestCase):
         result = quota_insights.summarize({}, credits, 100)
         self.assertEqual(result['expiring_count'], 1)
         self.assertEqual(result['next_expiry'], 101)
+
+    def test_pace_reference(self):
+        limits = {'rateLimits': {'primary': {'windowDurationMins': 300, 'usedPercent': 70, 'resetsAt': 100000 + 9000}}}
+        window = quota_insights.summarize(limits, {}, 100000)['windows'][0]
+        self.assertEqual(window['elapsed_percent'], 50)
+        self.assertEqual(window['pace_delta'], 20)
+        self.assertIn('均匀进度参考', window['pace_message'])
+
+    def test_pace_hidden_for_unreliable_windows(self):
+        for reset in (None, True, 99999, 100000, 118001, 117999):
+            limits = {'rateLimits': {'primary': {'windowDurationMins': 300, 'usedPercent': 20, 'resetsAt': reset}}}
+            window = quota_insights.summarize(limits, {}, 100000)['windows'][0]
+            self.assertIsNone(window['elapsed_percent'])
+            self.assertIsNone(window['pace_delta'])
+            self.assertEqual(window['pace_message'], '')
+
+    def test_pace_missing_usage(self):
+        window = quota_insights.summarize({'rateLimits': {'primary': {'windowDurationMins': 300, 'resetsAt': 109000}}}, {}, 100000)['windows'][0]
+        self.assertIsNone(window['pace_delta'])
+        self.assertEqual(window['pace_message'], '')

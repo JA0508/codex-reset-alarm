@@ -91,8 +91,9 @@
   </section>
   <section class="settings-row">
     <div class="row-title"><span>赠送重置次数</span><span class="credit"><span id="credits">—</span><small>次可用</small></span></div>
-    <div class="credit-meta"><div class="muted" id="creditUpdated">正在读取赠送次数</div><div class="muted">发放时间暂未公布</div><div class="muted" id="expiry" hidden></div><div id="expiryWarning" class="muted" hidden></div><details><summary class="muted">查看重置券明细</summary><div id="creditDetails" class="muted"></div></details></div>
+    <div class="credit-meta"><div class="muted" id="creditUpdated">正在读取赠送次数</div><div class="muted">下次赠送时间暂未公布</div><div class="muted" id="expiry" hidden></div><div id="expiryWarning" class="muted" hidden></div><details><summary class="muted">查看重置券明细</summary><div id="creditDetails" class="muted"></div></details></div>
   </section>
+  <section class="settings-row"><details><summary>刷新计划与服务状态</summary><div id="schedule" class="muted"></div><div id="serviceHealth" class="muted"></div></details></section>
   <section class="settings-row switchline">
     <div><div id="toggleLabel">闹钟提醒</div><div class="muted" id="toggleHint">正在读取提醒设置</div></div>
     <button class="switch" id="notifications" role="switch" aria-labelledby="toggleLabel" aria-checked="true" disabled></button>
@@ -147,6 +148,9 @@
 
     function tick() {
       updateFreshness();
+      const stale = !data?.fetched_at || Date.now() / 1000 - data.fetched_at > 120 || !!data.error;
+      $('availability').textContent = (stale ? '数据可能已过期 · ' : '') + (data?.insights?.message || '等待额度数据');
+
       const weekly = data?.weekly_reset;
       const remaining = weekly ? Math.max(0, Math.ceil(weekly - Date.now() / 1000)) : null;
       $('weeklyCount').textContent = remaining === null ? '暂无数据' : remaining === 0 ? '已到刷新时间' : '剩余 ' + (remaining >= 86400 ? Math.floor(remaining / 86400) + ' 天 ' : '') + Math.floor(remaining % 86400 / 3600) + ' 小时 ' + Math.floor(remaining % 3600 / 60) + ' 分';
@@ -184,9 +188,39 @@
           meter.setAttribute('aria-label', label.textContent);
           row.append(meter);
         }
+        if (window.pace_message) {
+          const pace = document.createElement('p');
+          pace.className = 'muted';
+          pace.textContent = window.pace_message + (data.error ? ' · 数据可能过期' : '');
+          pace.title = '将已用额度与当前窗口已经过的时间比例比较；不是耗尽时间预测。';
+          row.append(pace);
+        }
         quotaWindows.append(row);
       }
 
+      const schedule = $('schedule');
+      schedule.replaceChildren();
+      const plans = [{label:'5 小时额度', time:data.reset}, {label:'每周额度', time:data.weekly_reset}]
+        .filter(item => typeof item.time === 'number' && Number.isFinite(item.time) && item.time > 0)
+        .sort((a,b) => a.time - b.time);
+      for (const plan of plans) {
+        const line = document.createElement('p');
+        line.textContent = plan.label + ' · ' + stamp(plan.time) + (plan.time <= Date.now()/1000 ? ' · 等待接口确认新周期' : '');
+        schedule.append(line);
+      }
+      const health = $('serviceHealth');
+      health.replaceChildren();
+      for (const text of [
+        '电脑监测进程 · ' + (data.running ? '运行中' : '未运行，请在 Mac 检查服务'),
+        '监测最近成功检查 · ' + stamp(data.last_check),
+        '最近电脑响铃 · ' + stamp(data.last_alarm),
+        '重置券明细 · ' + (data.credit_details_error ? '暂时不可用' : data.credit_details_checked ? '最近成功读取 ' + stamp(data.credit_details_checked) : '尚未读取'),
+        'iPhone 闹钟状态需在手机时钟中确认'
+      ]) {
+        const line = document.createElement('p');
+        line.textContent = text;
+        health.append(line);
+      }
       token = data.csrf_token || '';
       const enabled = data.notifications_enabled !== false;
       $('notifications').setAttribute('aria-checked', String(enabled));

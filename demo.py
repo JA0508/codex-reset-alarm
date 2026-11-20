@@ -18,7 +18,7 @@ def snapshot():
     return {'demo_mode': True, 'phone_mode': False, 'notifications_enabled': ENABLED,
             'running': True, 'reset': STARTED + 8100, 'weekly_reset': STARTED + 180000,
             'insights': {'message': '额度尚有剩余（以 Codex 实际请求为准）', 'windows': [
-                {'kind': 'five_hour', 'remaining_percent': 68}, {'kind': 'weekly', 'remaining_percent': 42}], 'expiring_count': 1},
+                {'kind': 'five_hour', 'remaining_percent': 68, 'pace_message': '已用 32% · 时间已过 55%（均匀进度参考）'}, {'kind': 'weekly', 'remaining_percent': 42}], 'expiring_count': 1},
             'credits': {'availableCount': 2, 'credits': [
                 {'status': 'available', 'grantedAt': STARTED - 2400000, 'expiresAt': STARTED + 192000},
                 {'status': 'available', 'grantedAt': STARTED - 800000, 'expiresAt': STARTED + 1792000}]},

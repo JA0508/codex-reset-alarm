@@ -7,6 +7,21 @@ def number(value, minimum=0, maximum=10**12):
             and math.isfinite(value) and minimum <= value <= maximum)
 
 
+def pace_reference(used, reset, duration, now):
+    empty = {'elapsed_percent': None, 'pace_delta': None, 'pace_message': ''}
+    if used is None or not number(reset, minimum=1) or not number(now):
+        return empty
+    remaining = reset - now
+    if not 0 < remaining <= duration * 60:
+        return empty
+    elapsed = 100 * (1 - remaining / (duration * 60))
+    if elapsed < 3:
+        return empty
+    elapsed = round(elapsed, 1)
+    return {'elapsed_percent': elapsed, 'pace_delta': round(used - elapsed, 1),
+            'pace_message': f'已用 {used:g}% · 时间已过 {elapsed:g}%（均匀进度参考）'}
+
+
 def summarize(limits, credits, now):
     limits = limits if isinstance(limits, dict) else {}
     by_id = limits.get('rateLimitsByLimitId')
@@ -26,7 +41,8 @@ def summarize(limits, credits, now):
         reset = window.get('resetsAt')
         windows.append({'kind': kind, 'used_percent': used,
                         'remaining_percent': 100 - used if used is not None else None,
-                        'reset': reset if number(reset, minimum=1) else None})
+                        'reset': reset if number(reset, minimum=1) else None,
+                        **pace_reference(used, reset, duration, now)})
     exhausted = [window['kind'] for window in windows if window['remaining_percent'] == 0]
     deadlines = [window['reset'] for window in windows if window['kind'] in exhausted
                  and window['reset'] is not None and window['reset'] > now]
