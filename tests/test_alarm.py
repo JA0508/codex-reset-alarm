@@ -73,6 +73,11 @@ class AlarmTests(unittest.TestCase):
             self.assertIsNone(alarm.five_hour_reset({'rateLimits': {'primary': {'windowDurationMins': 300, 'resetsAt': value}}}))
 
 class CommandTests(unittest.TestCase):
+    def setUp(self):
+        observer = patch("alarm.usage_history.observe", return_value={})
+        observer.start()
+        self.addCleanup(observer.stop)
+
     def test_status(self):
         with patch('alarm.fetch_limits', return_value={'rateLimits': {'primary': {'windowDurationMins': 300, 'resetsAt': 120}}}), patch('builtins.print'):
             self.assertEqual(alarm.main(['status']), 0)

@@ -2,6 +2,8 @@
 """Local macOS alarm for Codex's five-hour usage window."""
 import argparse
 import preferences
+import quota_insights
+import usage_history
 import datetime
 import fcntl
 import json
@@ -281,8 +283,11 @@ def run(codex, path, interval):
             state = deliver_transition(state, None, path)
             reset = None
             try:
+                scope_before = usage_history.account_scope()
                 payload = fetch_limits(codex)
                 reset = five_hour_reset(payload)
+                if scope_before and scope_before == usage_history.account_scope():
+                    usage_history.observe(quota_insights.summarize(payload, {}, time.time())['windows'], time.time(), expected_scope=scope_before)
                 credits = payload.get('rateLimitResetCredits') or {}
                 if preferences.enabled() and credits_increased(state.get('reset_credits', {}), credits):
                     if alert('Codex 赠送的额度重置次数增加了，请前往 Codex 查看。', respect_preference=True):

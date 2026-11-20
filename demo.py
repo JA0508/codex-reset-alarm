@@ -16,6 +16,9 @@ ROOT = Path(__file__).resolve().parent
 
 def snapshot():
     return {'demo_mode': True, 'phone_mode': False, 'notifications_enabled': ENABLED,
+            'history': {'samples': [{'at': STARTED - 3600 + i*600, 'windows': [
+                {'kind':'five_hour','remaining_percent':90-i*3,'reset':STARTED+8100},
+                {'kind':'weekly','remaining_percent':48-i,'reset':STARTED+180000}]} for i in range(7)], 'events':[], 'error':''},
             'running': True, 'reset': STARTED + 8100, 'weekly_reset': STARTED + 180000,
             'insights': {'message': '额度尚有剩余（以 Codex 实际请求为准）', 'windows': [
                 {'kind': 'five_hour', 'remaining_percent': 68, 'pace_message': '已用 32% · 时间已过 55%（均匀进度参考）'}, {'kind': 'weekly', 'remaining_percent': 42}], 'expiring_count': 1},

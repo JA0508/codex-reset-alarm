@@ -93,6 +93,7 @@
     <div class="row-title"><span>赠送重置次数</span><span class="credit"><span id="credits">—</span><small>次可用</small></span></div>
     <div class="credit-meta"><div class="muted" id="creditUpdated">正在读取赠送次数</div><div class="muted">下次赠送时间暂未公布</div><div class="muted" id="expiry" hidden></div><div id="expiryWarning" class="muted" hidden></div><details><summary class="muted">查看重置券明细</summary><div id="creditDetails" class="muted"></div></details></div>
   </section>
+  <section class="settings-row"><details><summary>额度走势与变化记录</summary><p class="muted">近 24 小时本机观察 · 蓝色：5 小时，灰色：每周 · 剩余额度</p><div id="historyChart"></div><div id="historyEvents" class="muted"></div></details></section>
   <section class="settings-row"><details><summary>刷新计划与服务状态</summary><div id="schedule" class="muted"></div><div id="serviceHealth" class="muted"></div></details></section>
   <section class="settings-row switchline">
     <div><div id="toggleLabel">闹钟提醒</div><div class="muted" id="toggleHint">正在读取提醒设置</div></div>
@@ -221,6 +222,7 @@
         line.textContent = text;
         health.append(line);
       }
+      renderHistory(data.history || {});
       token = data.csrf_token || '';
       const enabled = data.notifications_enabled !== false;
       $('notifications').setAttribute('aria-checked', String(enabled));
@@ -259,6 +261,56 @@
       $('error').style.display = data.error ? 'block' : 'none';
       $('error').textContent = data.error ? '实时读取失败：' + data.error + '。请稍后刷新。' : '';
       tick();
+    }
+
+    function renderHistory(history) {
+      const chart = $('historyChart');
+      const events = $('historyEvents');
+      chart.replaceChildren(); events.replaceChildren();
+      const cutoff = Date.now()/1000 - 86400;
+      const samples = (history.samples || []).filter(item => typeof item.at === 'number' && item.at >= cutoff);
+      const ns = 'http://www.w3.org/2000/svg';
+      if (samples.length >= 2) {
+        const svg = document.createElementNS(ns, 'svg');
+        svg.setAttribute('viewBox', '0 0 500 140');
+        svg.setAttribute('role', 'img');
+        svg.setAttribute('aria-label', '近24小时剩余额度走势，详细观察值见下表');
+        svg.style.width = '100%';
+        const start = samples[0].at, span = Math.max(1, samples[samples.length-1].at-start);
+        for (const [kind, color] of [['five_hour','#64b5ff'],['weekly','#a1a1a6']]) {
+          // Separate paths when the reported reset changes; do not connect usage cycles.
+          let points = [], previous = null;
+          const flush = () => {
+            if (points.length > 1) {
+              const path = document.createElementNS(ns, 'polyline');
+              path.setAttribute('points', points.join(' ')); path.setAttribute('fill','none');
+              path.setAttribute('stroke',color); path.setAttribute('stroke-width','2'); svg.append(path);
+            }
+            points = [];
+          };
+          for (const sample of samples) {
+            const window = (sample.windows || []).find(w => w.kind === kind);
+            if (!window || typeof window.remaining_percent !== 'number' || !Number.isFinite(window.remaining_percent)) { flush(); previous = null; continue; }
+            if (previous !== null && previous !== window.reset) flush();
+            points.push((10+(sample.at-start)/span*480).toFixed(1)+','+(125-Math.max(0,Math.min(100,window.remaining_percent))*1.1).toFixed(1));
+            previous = window.reset;
+          }
+          flush();
+        }
+        chart.append(svg);
+      }
+      const note = document.createElement('p'); note.className='muted';
+      note.textContent = history.error || (samples.length < 2 ? '从现在开始积累，至少两次观察后显示走势。' : '观察范围：'+stamp(samples[0].at)+' — '+stamp(samples[samples.length-1].at)); chart.append(note);
+      const table = document.createElement('table'); table.style.cssText='width:100%;font-size:12px;text-align:left';
+      const caption = table.createCaption(); caption.textContent='最近观察值';
+      for (const sample of samples.slice(-8).reverse()) {
+        const row=table.insertRow(); row.insertCell().textContent=stamp(sample.at);
+        row.insertCell().textContent=(sample.windows || []).map(w=>(w.kind==='weekly'?'每周':'5小时')+' '+(w.remaining_percent ?? '—')+'%').join(' · ');
+      }
+      if (samples.length) chart.append(table);
+      for (const event of (history.events || []).slice(-8).reverse()) {
+        const line=document.createElement('p'); line.textContent=stamp(event.at)+' · '+(event.kind==='weekly'?'每周额度':'5 小时额度')+' · '+event.message; events.append(line);
+      }
     }
 
     async function load() {

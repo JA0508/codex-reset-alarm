@@ -13,6 +13,7 @@ import time
 import alarm
 import reset_credits
 import quota_insights
+import usage_history
 
 ROOT = Path(__file__).resolve().parent
 TOKEN = secrets.token_urlsafe(32)
@@ -40,19 +41,28 @@ def redact(value):
 
 def snapshot():
     with LOCK:
+        if CACHE.get('scope') != usage_history.account_scope():
+            CACHE['checked'] = None
         if CACHE['checked'] is None or time.monotonic() - CACHE['checked'] >= 60:
             try:
-                CACHE['limits'] = alarm.validate_limits(alarm.fetch_limits(alarm.default_codex()))
+                scope_before = usage_history.account_scope()
+                candidate = alarm.validate_limits(alarm.fetch_limits(alarm.default_codex()))
+                scope_after = usage_history.account_scope()
+                CACHE['scope'] = scope_after if scope_before == scope_after else None
+                CACHE['limits'] = candidate
                 CACHE['error'] = ''
                 CACHE['fetched_at'] = time.time()
             except (OSError, RuntimeError, ValueError, KeyError) as error:
                 CACHE['error'] = str(error)
             CACHE['checked'] = time.monotonic()
         limits, error, fetched_at = CACHE['limits'], CACHE['error'], CACHE.get('fetched_at')
+        observed_scope = CACHE.get('scope')
     detail = reset_credits.snapshot()
     state = alarm.read_state(alarm.DEFAULT_STATE)
     credits = detail['credits'] if detail['credits'] is not None else redact(limits.get('rateLimitResetCredits') or state.get('reset_credits', {}))
-    return {'insights': quota_insights.summarize(limits, credits, time.time()), 'fetched_at': fetched_at, 'notifications_enabled': preferences.enabled(), 'running': alarm.monitor_running(),
+    insights = quota_insights.summarize(limits, credits, time.time())
+    history = usage_history.observe(insights['windows'], fetched_at, expected_scope=observed_scope) if not error and fetched_at and observed_scope else {'samples': [], 'events': [], 'error': '等待成功读取额度'}
+    return {'history': history, 'insights': insights, 'fetched_at': fetched_at, 'notifications_enabled': preferences.enabled(), 'running': alarm.monitor_running(),
             'weekly_reset': alarm.weekly_reset(limits),
             'reset': alarm.five_hour_reset(limits) or state.get('reset'),
             'credits': detail['credits'] if detail['credits'] is not None else redact(limits.get('rateLimitResetCredits') or state.get('reset_credits', {})),
