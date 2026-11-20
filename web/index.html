@@ -275,11 +275,24 @@
       const ns = 'http://www.w3.org/2000/svg';
       if (samples.length >= 2) {
         const svg = document.createElementNS(ns, 'svg');
-        svg.setAttribute('viewBox', '0 0 500 140');
+        svg.setAttribute('viewBox', '0 0 500 165');
         svg.setAttribute('role', 'img');
         svg.setAttribute('aria-label', '所选范围剩余额度走势，详细观察值见下表');
         svg.style.width = '100%';
         const start = samples[0].at, span = Math.max(1, samples[samples.length-1].at-start);
+        const label = (x,y,text,anchor='start') => {
+          const node=document.createElementNS(ns,'text'); node.setAttribute('x',x); node.setAttribute('y',y);
+          node.setAttribute('fill','#a1a1a6'); node.setAttribute('font-size','10'); node.setAttribute('text-anchor',anchor); node.textContent=text; svg.append(node);
+        };
+        for (const value of [0,25,50,75,100]) {
+          const y=125-value*1.1, line=document.createElementNS(ns,'line');
+          line.setAttribute('x1','45');line.setAttribute('x2','490');line.setAttribute('y1',y);line.setAttribute('y2',y);line.setAttribute('stroke','#343437');svg.append(line);
+          label(38,y+3,value+'%','end');
+        }
+        for (let i=0;i<4;i++) {
+          const at=start+span*i/3;
+          label(45+445*i/3,147,new Date(at*1000).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}),i===0?'start':i===3?'end':'middle');
+        }
         for (const [kind, color] of [['five_hour','#64b5ff'],['weekly','#a1a1a6']]) {
           // Separate paths when the reported reset changes; do not connect usage cycles.
           let points = [], previous = null;
@@ -295,12 +308,30 @@
             const window = (sample.windows || []).find(w => w.kind === kind);
             if (!window || typeof window.remaining_percent !== 'number' || !Number.isFinite(window.remaining_percent)) { flush(); previous = null; continue; }
             if (previous !== null && previous !== window.reset) flush();
-            points.push((10+(sample.at-start)/span*480).toFixed(1)+','+(125-Math.max(0,Math.min(100,window.remaining_percent))*1.1).toFixed(1));
+            points.push((45+(sample.at-start)/span*445).toFixed(1)+','+(125-Math.max(0,Math.min(100,window.remaining_percent))*1.1).toFixed(1));
             previous = window.reset;
           }
           flush();
         }
         chart.append(svg);
+        const readout=document.createElement('p');readout.className='muted';readout.setAttribute('role','status');
+        const slider=document.createElement('input');slider.type='range';slider.min=0;slider.max=samples.length-1;slider.step=1;
+        slider.setAttribute('aria-label','选择观察时间，方向键可切换读数');slider.style.width='100%';
+        const cursor=document.createElementNS(ns,'line');cursor.setAttribute('y1','15');cursor.setAttribute('y2','125');cursor.setAttribute('stroke','#f5f5f7');cursor.setAttribute('stroke-dasharray','3 3');svg.append(cursor);
+        const select=index=>{
+          const sample=samples[index], x=45+(sample.at-start)/span*445;
+          cursor.setAttribute('x1',x);cursor.setAttribute('x2',x);slider.value=index;
+          readout.textContent=stamp(sample.at)+' · '+sample.windows.map(w=>(w.kind==='weekly'?'每周':'5 小时')+'剩余 '+w.remaining_percent+'%').join(' · ');
+          slider.setAttribute('aria-valuetext',readout.textContent);
+        };
+        slider.addEventListener('input',()=>select(Number(slider.value)));
+        const inspect=event=>{
+          const bounds=svg.getBoundingClientRect(), x=(event.clientX-bounds.left)/bounds.width*500;
+          const target=start+Math.max(0,Math.min(1,(x-45)/445))*span;
+          let nearest=0; samples.forEach((sample,index)=>{if(Math.abs(sample.at-target)<Math.abs(samples[nearest].at-target))nearest=index;});select(nearest);
+        };
+        svg.addEventListener('pointermove',inspect);svg.addEventListener('click',inspect);
+        chart.append(slider,readout);select(samples.length-1);
       }
       const note = document.createElement('p'); note.className='muted';
       note.textContent = history.error || (samples.length < 2 ? '从现在开始积累，至少两次观察后显示走势。' : '观察范围：'+stamp(samples[0].at)+' — '+stamp(samples[samples.length-1].at)); chart.append(note);
