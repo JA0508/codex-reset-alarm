@@ -94,7 +94,7 @@
     <div class="row-title"><span>赠送重置次数</span><span class="credit"><span id="credits">—</span><small>次可用</small></span></div>
     <div class="credit-meta"><div class="muted" id="creditUpdated">正在读取赠送次数</div><div class="muted">下次赠送时间暂未公布</div><div class="muted" id="expiry" hidden></div><div id="expiryWarning" class="muted" hidden></div><details><summary class="muted">查看重置券明细</summary><div id="creditDetails" class="muted"></div></details></div>
   </section>
-  <section class="settings-row"><details><summary>额度走势与变化记录</summary><p class="muted">本机观察 · 蓝色：5 小时，灰色：每周 · 剩余额度</p><label class="muted">观察范围 <select id="historyRange"><option value="24">24 小时</option><option value="168">7 天</option></select></label><div class="controls"><button id="exportCsv" disabled>导出 CSV</button><button id="exportJson" disabled>导出 JSON</button></div><p class="muted">只导出当前范围的观察值，不含账号与凭证。</p><div id="historyChart"></div><div id="historyEvents" class="muted"></div></details></section>
+  <section class="settings-row"><details><summary>额度走势与变化记录</summary><p class="muted">本机观察 · 蓝色：5 小时，灰色：每周 · 剩余额度</p><label class="muted">观察范围 <select id="historyRange"><option value="24">24 小时</option><option value="168">7 天</option></select></label><div class="controls"><button id="followLatest" aria-pressed="true">跟随最新</button><button id="exportCsv" disabled>导出 CSV</button><button id="exportJson" disabled>导出 JSON</button></div><p class="muted">只导出当前范围的观察值，不含账号与凭证。</p><div id="historyChart"></div><div id="historyEvents" class="muted"></div></details></section>
   <section class="settings-row"><details><summary>刷新计划与服务状态</summary><div id="schedule" class="muted"></div><div id="serviceHealth" class="muted"></div></details></section>
   <section class="settings-row switchline">
     <div><div id="toggleLabel">闹钟提醒</div><div class="muted" id="toggleHint">正在读取提醒设置</div></div>
@@ -115,6 +115,7 @@
     const $ = id => document.getElementById(id);
     let data = null;
     let inspectedAt = null;
+    let followLatest = true;
     let token = '';
     let saving = false;
     let statusController = null;
@@ -320,9 +321,12 @@
         const slider=document.createElement('input');slider.type='range';slider.min=0;slider.max=samples.length-1;slider.step=1;
         slider.setAttribute('aria-label','选择观察时间，方向键可切换读数');slider.style.width='100%';
         const cursor=document.createElementNS(ns,'line');cursor.setAttribute('y1','15');cursor.setAttribute('y2','125');cursor.setAttribute('stroke','#f5f5f7');cursor.setAttribute('stroke-dasharray','3 3');svg.append(cursor);
-        const select=index=>{
+        const select=(index, manual=false)=>{
           const sample=samples[index], x=45+(sample.at-start)/span*445;
+          if (manual) followLatest = false;
           inspectedAt = sample.at;
+          $('followLatest').textContent = followLatest ? '正在跟随最新' : '回到最新';
+          $('followLatest').setAttribute('aria-pressed',String(followLatest));
           cursor.setAttribute('x1',x);cursor.setAttribute('x2',x);slider.value=index;
           readout.textContent=stamp(sample.at)+' · '+sample.windows.map(w=>{
             const prior = index > 0 ? samples[index-1] : null;
@@ -333,16 +337,16 @@
           }).join(' · ');
           slider.setAttribute('aria-valuetext',readout.textContent);
         };
-        slider.addEventListener('input',()=>select(Number(slider.value)));
+        slider.addEventListener('input',()=>select(Number(slider.value),true));
         const inspect=event=>{
           const bounds=svg.getBoundingClientRect(), x=(event.clientX-bounds.left)/bounds.width*500;
           const target=start+Math.max(0,Math.min(1,(x-45)/445))*span;
-          let nearest=0; samples.forEach((sample,index)=>{if(Math.abs(sample.at-target)<Math.abs(samples[nearest].at-target))nearest=index;});select(nearest);
+          let nearest=0; samples.forEach((sample,index)=>{if(Math.abs(sample.at-target)<Math.abs(samples[nearest].at-target))nearest=index;});select(nearest,true);
         };
         svg.addEventListener('pointermove',inspect);svg.addEventListener('click',inspect);
         chart.append(slider,readout);
         const restored = inspectedAt === null ? -1 : samples.findIndex(sample=>sample.at===inspectedAt);
-        select(restored >= 0 ? restored : samples.length-1);
+        select(!followLatest && restored >= 0 ? restored : samples.length-1);
       }
       const note = document.createElement('p'); note.className='muted';
       note.textContent = history.error || (samples.length < 2 ? '从现在开始积累，至少两次观察后显示走势。' : '观察范围：'+stamp(samples[0].at)+' — '+stamp(samples[samples.length-1].at)+' · '+samples.length+' 条观察；超过 30 分钟的缺口不连线'); chart.append(note);
@@ -376,7 +380,18 @@
       const link=document.createElement('a'); link.href=url; link.download='codex-quota-history.'+format;
       document.body.append(link); link.click(); link.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
     }
-    $('historyRange').addEventListener('change',()=>renderHistory(data?.history || {}));
+    const viewKey = 'codex-alarm-view-v1';
+    function saveView() {
+      try { localStorage.setItem(viewKey,JSON.stringify({range:$('historyRange').value,open:[...document.querySelectorAll('main details')].map(item=>item.open)})); } catch (_) { /* Private browsing may deny storage; controls still work. */ }
+    }
+    try {
+      const saved=JSON.parse(localStorage.getItem(viewKey) || '{}');
+      if (['24','168'].includes(saved.range)) $('historyRange').value=saved.range;
+      if (Array.isArray(saved.open)) document.querySelectorAll('main details').forEach((item,index)=>{item.open=saved.open[index]===true;});
+    } catch (_) { /* Invalid or unavailable saved view falls back to defaults. */ }
+    document.querySelectorAll('main details').forEach(item=>item.addEventListener('toggle',saveView));
+    $('historyRange').addEventListener('change',()=>{saveView();renderHistory(data?.history || {});});
+    $('followLatest').addEventListener('click',()=>{followLatest=true;inspectedAt=null;renderHistory(data?.history || {});});
     $('exportCsv').addEventListener('click',()=>exportHistory('csv'));
     $('exportJson').addEventListener('click',()=>exportHistory('json'));
 
