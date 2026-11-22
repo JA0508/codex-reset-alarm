@@ -266,6 +266,16 @@
       tick();
     }
 
+    function observationSummary(samples) {
+      const valid = samples.filter(sample => Number.isFinite(sample.at)).slice().sort((a,b)=>a.at-b.at);
+      const gaps = valid.slice(1).filter((sample,index)=>sample.at-valid[index].at>1800).length;
+      const ranges = ['five_hour','weekly'].map(kind=>{
+        const values=valid.flatMap(sample=>(sample.windows || []).filter(w=>w.kind===kind && Number.isFinite(w.remaining_percent) && w.remaining_percent>=0 && w.remaining_percent<=100).map(w=>w.remaining_percent));
+        return {kind,min:values.length?Math.min(...values):null,max:values.length?Math.max(...values):null};
+      });
+      return {count:valid.length,gaps,first:valid[0]?.at,last:valid[valid.length-1]?.at,ranges};
+    }
+
     function renderHistory(history) {
       const chart = $('historyChart');
       const events = $('historyEvents');
@@ -274,6 +284,15 @@
       const samples = (history.samples || []).filter(item => typeof item.at === 'number' && item.at >= cutoff);
       $('exportCsv').disabled = samples.length === 0;
       $('exportJson').disabled = samples.length === 0;
+      const summary = observationSummary(samples);
+      const overview=document.createElement('div'); overview.className='muted';
+      const heading=document.createElement('p');
+      heading.textContent=summary.count+' 条观察 · '+summary.gaps+' 处超过 30 分钟的数据缺口';overview.append(heading);
+      for (const range of summary.ranges) {
+        if (range.min===null) continue;
+        const line=document.createElement('p');line.textContent=(range.kind==='weekly'?'每周':'5 小时')+'剩余额度 · 最低 '+range.min+'% / 最高 '+range.max+'%（所选记录内）';overview.append(line);
+      }
+      const caution=document.createElement('p');caution.textContent='记录可能只覆盖所选时间的一部分；最高/最低值跨周期统计，不代表消耗总量。';overview.append(caution);chart.append(overview);
       const ns = 'http://www.w3.org/2000/svg';
       if (samples.length >= 2) {
         const svg = document.createElementNS(ns, 'svg');
