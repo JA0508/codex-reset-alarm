@@ -92,16 +92,16 @@
   </section>
   <section class="settings-row">
     <div class="row-title"><span>赠送重置次数</span><span class="credit"><span id="credits">—</span><small>次可用</small></span></div>
-    <div class="credit-meta"><div class="muted" id="creditUpdated">正在读取赠送次数</div><div class="muted">下次赠送时间暂未公布</div><div class="muted" id="expiry" hidden></div><div id="expiryWarning" class="muted" hidden></div><details><summary class="muted">查看重置券明细</summary><div id="creditDetails" class="muted"></div></details></div>
+    <div class="credit-meta"><div class="muted" id="creditUpdated">正在读取赠送次数</div><div class="muted" id="expiry" hidden></div><div id="expiryWarning" class="muted" hidden></div><details><summary class="muted">查看重置券明细</summary><div id="creditDetails" class="muted"></div></details></div>
   </section>
-  <section class="settings-row"><details><summary>额度走势与变化记录</summary><p class="muted">本机观察 · 蓝色：5 小时，灰色：每周 · 剩余额度</p><label class="muted">观察范围 <select id="historyRange"><option value="24">24 小时</option><option value="168">7 天</option></select></label><div class="controls"><button id="followLatest" aria-pressed="true">跟随最新</button><button id="exportCsv" disabled>导出 CSV</button><button id="exportJson" disabled>导出 JSON</button></div><p class="muted">只导出当前范围的观察值，不含账号与凭证。</p><div id="historyChart"></div><div id="historyEvents" class="muted"></div></details></section>
-  <section class="settings-row"><details><summary>刷新计划与服务状态</summary><div id="schedule" class="muted"></div><div id="serviceHealth" class="muted"></div></details></section>
+  <section class="settings-row"><details><summary>额度走势</summary><p class="muted">本机观察 · 蓝色：5 小时，灰色：每周 · 剩余额度</p><label class="muted">观察范围 <select id="historyRange"><option value="24">24 小时</option><option value="168">7 天</option></select></label><button id="followLatest" aria-pressed="true">跟随最新</button><div id="historyChart"></div><details><summary class="muted">更多记录与导出</summary><div id="historyStats"></div><div id="historyTable"></div><div id="historyEvents" class="muted"></div><div class="controls"><button id="exportCsv" disabled>导出 CSV</button><button id="exportJson" disabled>导出 JSON</button></div></details></details></section>
+  <section class="settings-row"><details><summary>服务诊断</summary><div id="schedule" class="muted"></div><div id="serviceHealth" class="muted"></div></details></section>
   <section class="settings-row switchline">
     <div><div id="toggleLabel">闹钟提醒</div><div class="muted" id="toggleHint">正在读取提醒设置</div></div>
     <button class="switch" id="notifications" role="switch" aria-labelledby="toggleLabel" aria-checked="true" disabled></button>
   </section>
 </div>
-<div class="controls"><button class="text-button" id="test" disabled>试听电脑闹铃</button><span id="connectionTools" hidden><button class="text-button" id="connection">连接设置</button></span></div>
+<div class="controls"><button class="text-button" id="test" disabled>试听电脑闹铃</button><a href="https://chatgpt.com/codex/settings/usage" target="_blank" rel="noopener noreferrer" style="color:var(--blue);font-size:13px">官方用量</a><span id="connectionTools" hidden><button class="text-button" id="connection">连接设置</button></span></div>
 <p id="soundHint" class="muted">响铃最多 5 分钟，可在弹窗中停止。休眠后唤醒补提醒。</p>
 <div id="feedback" role="status" aria-live="polite"></div>
 </main>
@@ -155,6 +155,7 @@
       const stale = !data?.fetched_at || Date.now() / 1000 - data.fetched_at > 120 || !!data.error;
       $('availability').textContent = (stale ? '数据可能已过期 · ' : '') + (data?.insights?.message || '等待额度数据');
 
+      $('availability').hidden = !stale && !(data?.insights?.exhausted || []).length;
       const weekly = data?.weekly_reset;
       const remaining = weekly ? Math.max(0, Math.ceil(weekly - Date.now() / 1000)) : null;
       $('weeklyCount').textContent = remaining === null ? '暂无数据' : remaining === 0 ? '已到刷新时间' : '剩余 ' + (remaining >= 86400 ? Math.floor(remaining / 86400) + ' 天 ' : '') + Math.floor(remaining % 86400 / 3600) + ' 小时 ' + Math.floor(remaining % 3600 / 60) + ' 分';
@@ -191,13 +192,6 @@
           meter.value = window.remaining_percent;
           meter.setAttribute('aria-label', label.textContent);
           row.append(meter);
-        }
-        if (window.pace_message) {
-          const pace = document.createElement('p');
-          pace.className = 'muted';
-          pace.textContent = window.pace_message + (data.error ? ' · 数据可能过期' : '');
-          pace.title = '将已用额度与当前窗口已经过的时间比例比较；不是耗尽时间预测。';
-          row.append(pace);
         }
         quotaWindows.append(row);
       }
@@ -279,7 +273,7 @@
     function renderHistory(history) {
       const chart = $('historyChart');
       const events = $('historyEvents');
-      chart.replaceChildren(); events.replaceChildren();
+      chart.replaceChildren(); events.replaceChildren(); $('historyStats').replaceChildren(); $('historyTable').replaceChildren();
       const cutoff = Date.now()/1000 - Number($('historyRange').value)*3600;
       const samples = (history.samples || []).filter(item => typeof item.at === 'number' && item.at >= cutoff);
       $('exportCsv').disabled = samples.length === 0;
@@ -292,7 +286,7 @@
         if (range.min===null) continue;
         const line=document.createElement('p');line.textContent=(range.kind==='weekly'?'每周':'5 小时')+'剩余额度 · 最低 '+range.min+'% / 最高 '+range.max+'%（所选记录内）';overview.append(line);
       }
-      const caution=document.createElement('p');caution.textContent='记录可能只覆盖所选时间的一部分；最高/最低值跨周期统计，不代表消耗总量。';overview.append(caution);chart.append(overview);
+      const caution=document.createElement('p');caution.textContent='记录可能只覆盖所选时间的一部分；最高/最低值跨周期统计，不代表消耗总量。';overview.append(caution);$('historyStats').append(overview);
       const ns = 'http://www.w3.org/2000/svg';
       if (samples.length >= 2) {
         const svg = document.createElementNS(ns, 'svg');
@@ -368,14 +362,14 @@
         select(!followLatest && restored >= 0 ? restored : samples.length-1);
       }
       const note = document.createElement('p'); note.className='muted';
-      note.textContent = history.error || (samples.length < 2 ? '从现在开始积累，至少两次观察后显示走势。' : '观察范围：'+stamp(samples[0].at)+' — '+stamp(samples[samples.length-1].at)+' · '+samples.length+' 条观察；超过 30 分钟的缺口不连线'); chart.append(note);
+      note.textContent = history.error || (samples.length < 2 ? '正在积累记录，稍后显示走势。' : stamp(samples[0].at)+' — '+stamp(samples[samples.length-1].at)); chart.append(note);
       const table = document.createElement('table'); table.style.cssText='width:100%;font-size:12px;text-align:left';
       const caption = table.createCaption(); caption.textContent='最近观察值';
       for (const sample of samples.slice(-8).reverse()) {
         const row=table.insertRow(); row.insertCell().textContent=stamp(sample.at);
         row.insertCell().textContent=(sample.windows || []).map(w=>(w.kind==='weekly'?'每周':'5小时')+' '+(w.remaining_percent ?? '—')+'%').join(' · ');
       }
-      if (samples.length) chart.append(table);
+      if (samples.length) $('historyTable').append(table);
       for (const event of (history.events || []).filter(event => event.at >= cutoff).slice(-8).reverse()) {
         const line=document.createElement('p'); line.textContent=stamp(event.at)+' · '+(event.kind==='weekly'?'每周额度':'5 小时额度')+' · '+event.message; events.append(line);
       }
@@ -399,7 +393,7 @@
       const link=document.createElement('a'); link.href=url; link.download='codex-quota-history.'+format;
       document.body.append(link); link.click(); link.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
     }
-    const viewKey = 'codex-alarm-view-v1';
+    const viewKey = 'codex-alarm-view-v2';
     function saveView() {
       try { localStorage.setItem(viewKey,JSON.stringify({range:$('historyRange').value,open:[...document.querySelectorAll('main details')].map(item=>item.open)})); } catch (_) { /* Private browsing may deny storage; controls still work. */ }
     }
