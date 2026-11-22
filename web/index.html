@@ -114,6 +114,7 @@
 <script>
     const $ = id => document.getElementById(id);
     let data = null;
+    let inspectedAt = null;
     let token = '';
     let saving = false;
     let statusController = null;
@@ -289,13 +290,14 @@
           line.setAttribute('x1','45');line.setAttribute('x2','490');line.setAttribute('y1',y);line.setAttribute('y2',y);line.setAttribute('stroke','#343437');svg.append(line);
           label(38,y+3,value+'%','end');
         }
-        for (let i=0;i<4;i++) {
-          const at=start+span*i/3;
-          label(45+445*i/3,147,new Date(at*1000).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}),i===0?'start':i===3?'end':'middle');
+        const tickCount = innerWidth < 500 ? 3 : 4;
+        for (let i=0;i<tickCount;i++) {
+          const at=start+span*i/(tickCount-1);
+          label(45+445*i/(tickCount-1),147,new Date(at*1000).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}),i===0?'start':i===tickCount-1?'end':'middle');
         }
         for (const [kind, color] of [['five_hour','#64b5ff'],['weekly','#a1a1a6']]) {
           // Separate paths when the reported reset changes; do not connect usage cycles.
-          let points = [], previous = null;
+          let points = [], previous = null, previousAt = null;
           const flush = () => {
             if (points.length > 1) {
               const path = document.createElementNS(ns, 'polyline');
@@ -307,9 +309,9 @@
           for (const sample of samples) {
             const window = (sample.windows || []).find(w => w.kind === kind);
             if (!window || typeof window.remaining_percent !== 'number' || !Number.isFinite(window.remaining_percent)) { flush(); previous = null; continue; }
-            if (previous !== null && previous !== window.reset) flush();
+            if (previous !== null && (previous !== window.reset || sample.at-previousAt > 1800)) flush();
             points.push((45+(sample.at-start)/span*445).toFixed(1)+','+(125-Math.max(0,Math.min(100,window.remaining_percent))*1.1).toFixed(1));
-            previous = window.reset;
+            previous = window.reset; previousAt = sample.at;
           }
           flush();
         }
@@ -320,8 +322,15 @@
         const cursor=document.createElementNS(ns,'line');cursor.setAttribute('y1','15');cursor.setAttribute('y2','125');cursor.setAttribute('stroke','#f5f5f7');cursor.setAttribute('stroke-dasharray','3 3');svg.append(cursor);
         const select=index=>{
           const sample=samples[index], x=45+(sample.at-start)/span*445;
+          inspectedAt = sample.at;
           cursor.setAttribute('x1',x);cursor.setAttribute('x2',x);slider.value=index;
-          readout.textContent=stamp(sample.at)+' · '+sample.windows.map(w=>(w.kind==='weekly'?'每周':'5 小时')+'剩余 '+w.remaining_percent+'%').join(' · ');
+          readout.textContent=stamp(sample.at)+' · '+sample.windows.map(w=>{
+            const prior = index > 0 ? samples[index-1] : null;
+            const old = prior?.windows.find(item=>item.kind===w.kind);
+            const comparable = old && old.reset===w.reset && sample.at-prior.at<=1800;
+            const delta = comparable ? Math.round((w.remaining_percent-old.remaining_percent)*10)/10 : null;
+            return (w.kind==='weekly'?'每周':'5 小时')+'剩余 '+w.remaining_percent+'%'+(delta===null?'':delta===0?'（较上一条不变）':'（较上一条'+(delta>0?'增加 ':'减少 ')+Math.abs(delta)+' 个百分点）');
+          }).join(' · ');
           slider.setAttribute('aria-valuetext',readout.textContent);
         };
         slider.addEventListener('input',()=>select(Number(slider.value)));
@@ -331,10 +340,12 @@
           let nearest=0; samples.forEach((sample,index)=>{if(Math.abs(sample.at-target)<Math.abs(samples[nearest].at-target))nearest=index;});select(nearest);
         };
         svg.addEventListener('pointermove',inspect);svg.addEventListener('click',inspect);
-        chart.append(slider,readout);select(samples.length-1);
+        chart.append(slider,readout);
+        const restored = inspectedAt === null ? -1 : samples.findIndex(sample=>sample.at===inspectedAt);
+        select(restored >= 0 ? restored : samples.length-1);
       }
       const note = document.createElement('p'); note.className='muted';
-      note.textContent = history.error || (samples.length < 2 ? '从现在开始积累，至少两次观察后显示走势。' : '观察范围：'+stamp(samples[0].at)+' — '+stamp(samples[samples.length-1].at)); chart.append(note);
+      note.textContent = history.error || (samples.length < 2 ? '从现在开始积累，至少两次观察后显示走势。' : '观察范围：'+stamp(samples[0].at)+' — '+stamp(samples[samples.length-1].at)+' · '+samples.length+' 条观察；超过 30 分钟的缺口不连线'); chart.append(note);
       const table = document.createElement('table'); table.style.cssText='width:100%;font-size:12px;text-align:left';
       const caption = table.createCaption(); caption.textContent='最近观察值';
       for (const sample of samples.slice(-8).reverse()) {
