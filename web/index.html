@@ -41,6 +41,7 @@
   .switch[aria-checked="true"]::after { background:var(--green); }
   .switch[aria-checked="true"]::before { transform:translateX(16px); }
   button { font-family:inherit; font-size:13px; font-weight:400; cursor:pointer; border:0; border-radius:7px; padding:8px 11px; color:var(--blue); background:var(--control); max-width:100%; }
+  #refresh { min-width:58px; text-align:right; }
   button.text-button { padding:4px 0; background:transparent; }
   button:hover:not(:disabled) { filter:brightness(.95); }
   button:active:not(:disabled) { filter:brightness(.88); }
@@ -114,6 +115,7 @@
 <script>
     const $ = id => document.getElementById(id);
     let data = null;
+    let connectionLost = false;
     let inspectedAt = null;
     let followLatest = true;
     let token = '';
@@ -125,6 +127,15 @@
     const stamp = timestamp => typeof timestamp === 'number' && timestamp > 0
       ? new Date(timestamp * 1000).toLocaleString('zh-CN', {hour12: false})
       : '暂无记录';
+
+    function friendlyTime(timestamp, now = new Date()) {
+      if (!Number.isFinite(timestamp) || timestamp <= 0) return '暂无时间';
+      const date = new Date(timestamp*1000);
+      const day = value => [value.getFullYear(),value.getMonth(),value.getDate()].join('-');
+      const tomorrow = new Date(now); tomorrow.setDate(now.getDate()+1);
+      const prefix = day(date)===day(now) ? '今天' : day(date)===day(tomorrow) ? '明天' : date.toLocaleDateString('zh-CN',{month:'numeric',day:'numeric',...(date.getFullYear()!==now.getFullYear()?{year:'numeric'}:{})});
+      return prefix+' '+date.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',hour12:false});
+    }
 
     async function request(path, options = {}, controller = new AbortController()) {
       const timeout = setTimeout(() => controller.abort(), 25000);
@@ -152,14 +163,14 @@
 
     function tick() {
       updateFreshness();
-      const stale = !data?.fetched_at || Date.now() / 1000 - data.fetched_at > 120 || !!data.error;
+      const stale = !data?.fetched_at || Date.now() / 1000 - data.fetched_at > 120 || !!data.error || connectionLost;
       $('availability').textContent = (stale ? '数据可能已过期 · ' : '') + (data?.insights?.message || '等待额度数据');
 
       $('availability').hidden = !stale && !(data?.insights?.exhausted || []).length;
       const weekly = data?.weekly_reset;
       const remaining = weekly ? Math.max(0, Math.ceil(weekly - Date.now() / 1000)) : null;
       $('weeklyCount').textContent = remaining === null ? '暂无数据' : remaining === 0 ? '已到刷新时间' : '剩余 ' + (remaining >= 86400 ? Math.floor(remaining / 86400) + ' 天 ' : '') + Math.floor(remaining % 86400 / 3600) + ' 小时 ' + Math.floor(remaining % 3600 / 60) + ' 分';
-      $('weeklyDate').textContent = weekly ? '刷新时间 · ' + stamp(weekly) : '账号暂未返回每周刷新时间';
+      $('weeklyDate').textContent = weekly ? '刷新 · ' + friendlyTime(weekly) : '账号暂未返回每周刷新时间';
       if (!data?.reset) {
         $('count').textContent = '--:--:--';
         return;
@@ -236,8 +247,10 @@
       $('status').classList.toggle('online', !!data.running);
       $('status').textContent = data.demo_mode ? '演示运行中' : (data.running ? '监测运行中' : '监测未运行 / 心跳过期');
       $('reset').textContent = data.reset
-        ? '刷新时间 · ' + stamp(data.reset)
+        ? '刷新 · ' + friendlyTime(data.reset)
         : '暂未获得五小时刷新时间';
+      $('reset').title = stamp(data.reset);
+      $('weeklyDate').title = stamp(data.weekly_reset);
       $('credits').textContent = credits.availableCount ?? '—';
       $('creditUpdated').textContent = data.credit_details_error || ((data.credit_details_checked || data.fetched_at) ? '最近更新 · ' + stamp(data.credit_details_checked || data.fetched_at) : '尚未成功读取赠送次数');
       const dates = (credits.credits || []).map(credit => credit.expiresAt).filter(value => typeof value === 'number' && Number.isFinite(value) && value > 0);
@@ -414,13 +427,17 @@
       const version = ++statusVersion;
       statusController = controller;
       $('refresh').disabled = true;
+      $('refresh').textContent = '更新中…';
+      $('refresh').setAttribute('aria-busy','true');
       try {
         const result = await request('api/status', {cache: 'no-store'}, controller);
         if (version !== statusVersion || saving) return;
+        connectionLost = false;
         data = result;
         renderStatus();
       } catch (error) {
         if (version !== statusVersion) return;
+        connectionLost = true;
         $('error').style.display = 'block';
         $('error').textContent = '连接中断：'
           + (error.name === 'AbortError' ? '请求超过 25 秒，请稍后刷新。' : error.message)
@@ -432,6 +449,8 @@
       } finally {
         if (statusController === controller) statusController = null;
         if (!saving) $('refresh').disabled = false;
+        $('refresh').textContent = '刷新';
+        $('refresh').removeAttribute('aria-busy');
       }
     }
 
